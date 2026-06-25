@@ -7,7 +7,7 @@ Upload da planilha → tratamento de dados → insights para a gestão.
 import streamlit as st
 import pandas as pd
 
-from utils.data_processor import load_dataframe, process_data, build_metrics, FINANCIAL_CAUSES
+from utils.data_processor import load_dataframe, process_data, build_metrics, export_excel, FINANCIAL_CAUSES
 from utils.style import (
     inject_global_css,
     kpi_card,
@@ -145,8 +145,7 @@ h1, h2 = st.columns([3, 1.1])
 with h1:
     md(
         """
-        <div class="app-title">RESUMO <span>EXECUTIVO</span></div>
-        <div class="app-subtitle">Análise de retrabalho por oficina</div>
+        <div class="app-title">ANÁLISE <span>DE RETRABALHO POR OFICINA</span></div>
         """
     )
 with h2:
@@ -238,18 +237,110 @@ tooltip_style = echarts_tooltip_style()
 # --------------------------------------------------------------------------- #
 
 md('<div class="section-label">Principais oficinas com problema</div>')
-md('<div class="panel">')
-md('<div class="panel-title">🏭 Ranking de oficinas por volume de ajustes</div>')
-md(render_oficinas_table(m.oficinas_resumo, top_n=8))
-md("</div>")
+
+col_tabela, col_rosca = st.columns([1.6, 1])
+
+with col_tabela:
+    md('<div class="panel">')
+    #md('<div class="panel-title">🏭 Ranking de oficinas por volume de ajustes</div>')
+    md(render_oficinas_table(m.oficinas_resumo, top_n=8))
+    md("</div>")
+
+with col_rosca:
+    md('<div class="panel">')
+    #md('<div class="panel-title">🍩 Top 4 causas de retrabalho</div>')
+
+    top4_causas = m.causas_resumo.head(4).reset_index(drop=True)
+    outros_qtd = int(m.causas_resumo.iloc[4:]["QTD"].sum()) if len(m.causas_resumo) > 4 else 0
+    rosca_data = [
+        {"value": int(row["QTD"]), "name": row["CAUSA"]}
+        for _, row in top4_causas.iterrows()
+    ]
+    if outros_qtd > 0:
+        rosca_data.append({"value": outros_qtd, "name": "Demais"})
+
+    rosca_palette = CHART_PALETTE[:4] + [COLORS["text_muted"]]
+
+    rosca_tooltip_js = f"""function(params) {{
+        return '<div style="font-weight:700;color:{COLORS['text']};margin-bottom:4px;">' +
+               params.marker + params.name + '</div>' +
+               '<div style="color:{COLORS['text_dim']};font-size:12px;">' +
+               '<span style="color:{COLORS['text']};font-weight:700;">' + params.value + '</span>' +
+               ' ocorrências &nbsp;<span style="color:{COLORS['aqua']};font-weight:700;">(' +
+               params.percent.toFixed(1) + '%)</span></div>';
+    }}"""
+
+    rosca_option = {
+        "tooltip": {
+            **tooltip_style,
+            "trigger": "item",
+            "formatter": "__ROSCA_TOOLTIP__",
+        },
+        "legend": {
+            "orient": "vertical",
+            "right": "2%",
+            "top": "center",
+            "textStyle": {
+                "color": COLORS["text_dim"],
+                "fontSize": 11,
+                "fontFamily": "Inter, sans-serif",
+            },
+            "itemWidth": 10,
+            "itemHeight": 10,
+            "itemGap": 10,
+        },
+        "series": [
+            {
+                "type": "pie",
+                "radius": ["38%", "64%"],
+                "center": ["36%", "52%"],
+                "avoidLabelOverlap": True,
+                "label": {
+                    "show": True,
+                    "position": "outside",
+                    "formatter": "{c}",
+                    "color": COLORS["text"],
+                    "fontSize": 11,
+                    "fontWeight": 700,
+                    "fontFamily": "Inter, sans-serif",
+                },
+                "labelLine": {
+                    "show": True,
+                    "length": 10,
+                    "length2": 12,
+                    "lineStyle": {"color": COLORS["text_muted"], "width": 1.2},
+                },
+                "emphasis": {
+                    "label": {
+                        "show": True,
+                        "fontSize": 13,
+                        "fontWeight": "bold",
+                        "color": COLORS["aqua"],
+                        "fontFamily": "Inter, sans-serif",
+                    },
+                    "itemStyle": {
+                        "shadowBlur": 14,
+                        "shadowColor": "rgba(31,231,184,0.35)",
+                    },
+                },
+                "data": [
+                    {**item, "itemStyle": {"color": rosca_palette[i]}}
+                    for i, item in enumerate(rosca_data)
+                ],
+            }
+        ],
+    }
+
+    render_echart(rosca_option, height=300, js_formatters={"__ROSCA_TOOLTIP__": rosca_tooltip_js})
+    md("</div>")
 
 # --------------------------------------------------------------------------- #
 # Linha — Gráfico de oficinas com maior quantidade de ajustes (largura cheia)
 # --------------------------------------------------------------------------- #
 
-md('<div class="section-label">Oficinas com maior quantidade de ajustes</div>')
-md('<div class="panel">')
-md('<div class="panel-title">📊 Ranking de ajustes por oficina</div>')
+md('<div class="section-label">Ranking de ajustes e distribuição de causas</div>')
+
+col_rank, col_causas = st.columns(2)
 
 top_oficinas = m.oficinas_resumo.head(10).sort_values("QTD", ascending=True)
 bar_colors = value_color_scale(top_oficinas["QTD"])
@@ -296,9 +387,89 @@ bar_option = {
         }
     ],
 }
-render_echart(bar_option, height=380, js_formatters={"__RANKING_TOOLTIP__": ranking_tooltip_js})
 
-md("</div>")
+causas_df = m.causas_resumo.reset_index(drop=True)
+
+causas_tooltip_js = f"""function(params) {{
+    var pct = params.data.pct;
+    return '<div style="font-weight:700;color:{COLORS['text']};margin-bottom:4px;">' +
+           params.marker + params.name + '</div>' +
+           '<div style="color:{COLORS['text_dim']};font-size:12px;">' +
+           params.value + ' ocorrências &nbsp;<span style="color:{COLORS['aqua']};font-weight:700;">(' +
+           pct.toFixed(1) + '%)</span></div>';
+}}"""
+
+column_option = {
+    "tooltip": {
+        **tooltip_style,
+        "trigger": "item",
+        "formatter": "__CAUSAS_TOOLTIP__",
+    },
+    "grid": {"left": "1%", "right": "2%", "top": "10%", "bottom": "18%", "containLabel": True},
+    "xAxis": {
+        "type": "category",
+        "data": causas_df["CAUSA"].tolist(),
+        "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.12)"}},
+        "axisTick": {"show": False},
+        "axisLabel": {
+            "color": COLORS["text_dim"],
+            "fontSize": 10,
+            "fontFamily": "Inter, sans-serif",
+            "interval": 0,
+            "rotate": 22,
+        },
+    },
+    "yAxis": {
+        "type": "value",
+        "splitLine": {"lineStyle": {"color": "rgba(255,255,255,0.05)"}},
+        "axisLabel": {"color": COLORS["text_dim"], "fontFamily": "Inter, sans-serif"},
+    },
+    "series": [
+        {
+            "type": "bar",
+            "barWidth": "52%",
+            "data": [
+                {
+                    "value": int(row["QTD"]),
+                    "pct": float(row["PERCENTUAL"]),
+                    "itemStyle": {
+                        "color": CHART_PALETTE[i % len(CHART_PALETTE)],
+                        "borderRadius": [6, 6, 0, 0],
+                    },
+                }
+                for i, row in causas_df.iterrows()
+            ],
+            "label": {
+                "show": True,
+                "position": "top",
+                "color": COLORS["text"],
+                "fontSize": 11,
+                "fontWeight": 600,
+            },
+        }
+    ],
+}
+
+with col_rank:
+    md('<div class="panel">')
+    #md('<div class="panel-title">📊 Ranking de ajustes por oficina</div>')
+    render_echart(bar_option, height=360, js_formatters={"__RANKING_TOOLTIP__": ranking_tooltip_js})
+    md("</div>")
+
+with col_causas:
+    md('<div class="panel">')
+    #md('<div class="panel-title">🧭 Distribuição das causas de retrabalho</div>')
+    render_echart(column_option, height=360, js_formatters={"__CAUSAS_TOOLTIP__": causas_tooltip_js})
+    md(
+        f"""
+        <div class="insight-box">
+        💡 As causas financeiras (Descontos, Balanceamento, Valor Unitário e Reembolso)
+        concentram <b style="color:{COLORS['aqua']};">{m.pct_financeiro}%</b> de todas as ocorrências do período —
+        oportunidade clara de revisão de processo de cadastro de preços e regras de fechamento.
+        </div>
+        """
+    )
+    md("</div>")
 
 # --------------------------------------------------------------------------- #
 # Linha — Pareto de oficinas (curva de concentração)
@@ -306,7 +477,7 @@ md("</div>")
 
 md('<div class="section-label">Concentração de ocorrências — análise de Pareto</div>')
 md('<div class="panel">')
-md('<div class="panel-title">📉 Pareto de oficinas — volume e % acumulado de ajustes</div>')
+#md('<div class="panel-title">📉 Pareto de oficinas — volume e % acumulado de ajustes</div>')
 
 pareto_df = m.pareto_oficinas.head(15)
 pareto_label = f"{m.pareto_80pct_count} oficina{'s' if m.pareto_80pct_count != 1 else ''}"
@@ -431,88 +602,6 @@ md(
 md("</div>")
 
 # --------------------------------------------------------------------------- #
-# Linha — Causas de retrabalho (largura cheia)
-# --------------------------------------------------------------------------- #
-
-md('<div class="section-label">Causas de retrabalho</div>')
-md('<div class="panel">')
-md('<div class="panel-title">🧭 Distribuição das causas de retrabalho</div>')
-
-causas_df = m.causas_resumo.reset_index(drop=True)
-
-causas_tooltip_js = f"""function(params) {{
-    var pct = params.data.pct;
-    return '<div style="font-weight:700;color:{COLORS['text']};margin-bottom:4px;">' +
-           params.marker + params.name + '</div>' +
-           '<div style="color:{COLORS['text_dim']};font-size:12px;">' +
-           params.value + ' ocorrências &nbsp;<span style="color:{COLORS['aqua']};font-weight:700;">(' +
-           pct.toFixed(1) + '%)</span></div>';
-}}"""
-
-column_option = {
-    "tooltip": {
-        **tooltip_style,
-        "trigger": "item",
-        "formatter": "__CAUSAS_TOOLTIP__",
-    },
-    "grid": {"left": "1%", "right": "2%", "top": "10%", "bottom": "18%", "containLabel": True},
-    "xAxis": {
-        "type": "category",
-        "data": causas_df["CAUSA"].tolist(),
-        "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.12)"}},
-        "axisTick": {"show": False},
-        "axisLabel": {
-            "color": COLORS["text_dim"],
-            "fontSize": 10,
-            "fontFamily": "Inter, sans-serif",
-            "interval": 0,
-            "rotate": 22,
-        },
-    },
-    "yAxis": {
-        "type": "value",
-        "splitLine": {"lineStyle": {"color": "rgba(255,255,255,0.05)"}},
-        "axisLabel": {"color": COLORS["text_dim"], "fontFamily": "Inter, sans-serif"},
-    },
-    "series": [
-        {
-            "type": "bar",
-            "barWidth": "52%",
-            "data": [
-                {
-                    "value": int(row["QTD"]),
-                    "pct": float(row["PERCENTUAL"]),
-                    "itemStyle": {
-                        "color": CHART_PALETTE[i % len(CHART_PALETTE)],
-                        "borderRadius": [6, 6, 0, 0],
-                    },
-                }
-                for i, row in causas_df.iterrows()
-            ],
-            "label": {
-                "show": True,
-                "position": "top",
-                "color": COLORS["text"],
-                "fontSize": 11,
-                "fontWeight": 600,
-            },
-        }
-    ],
-}
-render_echart(column_option, height=360, js_formatters={"__CAUSAS_TOOLTIP__": causas_tooltip_js})
-
-md(
-    f"""
-    <div class="insight-box">
-    💡 As causas financeiras (Descontos, Balanceamento, Valor Unitário e Reembolso)
-    concentram <b style="color:{COLORS['aqua']};">{m.pct_financeiro}%</b> de todas as ocorrências do período —
-    oportunidade clara de revisão de processo de cadastro de preços e regras de fechamento.
-    </div>
-    """
-)
-md("</div>")
-
-# --------------------------------------------------------------------------- #
 # Linha — % de ocorrências "Outros" (qualidade das regras de classificação)
 # --------------------------------------------------------------------------- #
 
@@ -586,7 +675,7 @@ if not m.outros_top_descricoes.empty:
 
 md('<div class="section-label">Sazonalidade — tendência diária</div>')
 md('<div class="panel">')
-md('<div class="panel-title">📈 Ocorrências por dia e tendência (média móvel de 3 dias)</div>')
+#md('<div class="panel-title">📈 Ocorrências por dia e tendência (média móvel de 3 dias)</div>')
 
 serie = m.serie_diaria
 dias_fmt = pd.to_datetime(serie["DIA"]).dt.strftime("%d/%m").tolist()
@@ -711,3 +800,12 @@ with st.expander("🔍 Ver dados tratados (base completa após classificação)"
             causa_colors=causa_color_map,
         )
     )
+
+xlsx_bytes = export_excel(df_f, m.periodo_inicio, m.periodo_fim)
+st.download_button(
+    label="⬇️ Exportar planilha executiva (.xlsx)",
+    data=xlsx_bytes,
+    file_name=f"ajustes_ocorrencias_{m.periodo_inicio.replace('/', '-')}_a_{m.periodo_fim.replace('/', '-')}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    help="Gera uma planilha Excel com layout executivo contendo todos os registros filtrados.",
+)

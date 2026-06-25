@@ -171,10 +171,11 @@ background: linear-gradient(165deg, {COLORS['bg_card']} 0%, {COLORS['bg_card_alt
 border: 1px solid {COLORS['border']};
 border-radius: 18px;
 padding: 1.15rem 1.3rem;
-height: 100%;
+height: 168px;
 position: relative;
 overflow: hidden;
 transition: border-color 0.2s ease;
+box-sizing: border-box;
 }}
 .kpi-card:hover {{
 border-color: {COLORS['border_strong']};
@@ -208,6 +209,10 @@ font-size: 1.7rem;
 font-weight: 800;
 color: {COLORS['text']};
 line-height: 1.15;
+white-space: nowrap;
+overflow: hidden;
+text-overflow: ellipsis;
+max-width: 100%;
 }}
 .kpi-caption {{
 color: {COLORS['text_dim']};

@@ -12,11 +12,21 @@ Responsável por:
 
 from __future__ import annotations
 
+import io
 import re
 import unicodedata
 from dataclasses import dataclass, field
 
 import pandas as pd
+from openpyxl import Workbook
+from openpyxl.styles import (
+    Alignment,
+    Border,
+    Font,
+    GradientFill,
+    PatternFill,
+    Side,
+)
 
 
 # --------------------------------------------------------------------------- #
@@ -269,3 +279,110 @@ def build_metrics(df: pd.DataFrame) -> DashboardMetrics:
     m.periodo_fim = pd.to_datetime(df["DATA"].max()).strftime("%d/%m/%Y")
 
     return m
+
+
+# --------------------------------------------------------------------------- #
+# Exportação — planilha executiva (.xlsx)
+# --------------------------------------------------------------------------- #
+
+def export_excel(df: pd.DataFrame, periodo_inicio: str, periodo_fim: str) -> bytes:
+    """Gera um arquivo Excel executivo com os registros de df (já filtrado).
+
+    Colunas exportadas: OM, OFICINA, DATA, CAUSA, DESCRICAO — idênticas à
+    tabela exibida no dashboard. Layout: cabeçalho escuro com texto aqua,
+    zebra-striping suave, bordas finas, larguras ajustadas e aba de metadados.
+    """
+    # ── paleta ──────────────────────────────────────────────────────────────
+    C_HEADER_BG  = "070B10"
+    C_HEADER_FG  = "1FE7B8"
+    C_ROW_ALT    = "0E151B"
+    C_ROW_EVEN   = "0B1117"
+    C_BORDER     = "1FE7B822"
+    C_TEXT       = "E9F5F1"
+    C_TEXT_DIM   = "7F93A0"
+    C_ACCENT     = "1FE7B8"
+
+    thin = Side(style="thin", color="1A2E26")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    header_font  = Font(name="Calibri", bold=True, size=10, color=C_HEADER_FG)
+    header_fill  = PatternFill("solid", fgColor=C_HEADER_BG)
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=False)
+
+    data_font      = Font(name="Calibri", size=10, color=C_TEXT)
+    data_font_dim  = Font(name="Calibri", size=10, color=C_TEXT_DIM)
+    data_align_l   = Alignment(horizontal="left",   vertical="center", wrap_text=False)
+    data_align_c   = Alignment(horizontal="center", vertical="center", wrap_text=False)
+    data_align_wrap = Alignment(horizontal="left",  vertical="center", wrap_text=True)
+
+    fill_even = PatternFill("solid", fgColor=C_ROW_EVEN)
+    fill_odd  = PatternFill("solid", fgColor=C_ROW_ALT)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Dados Tratados"
+
+    # ── cabeçalho da planilha (título executivo) ─────────────────────────────
+    ws.merge_cells("A1:E1")
+    title_cell = ws["A1"]
+    title_cell.value = "AJUSTES & OCORRÊNCIAS — RESUMO EXECUTIVO"
+    title_cell.font = Font(name="Calibri", bold=True, size=14, color=C_ACCENT)
+    title_cell.fill = PatternFill("solid", fgColor=C_HEADER_BG)
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 28
+
+    ws.merge_cells("A2:E2")
+    sub_cell = ws["A2"]
+    sub_cell.value = f"Período: {periodo_inicio} a {periodo_fim}  |  Total: {len(df):,} ocorrências"
+    sub_cell.font = Font(name="Calibri", size=10, color=C_TEXT_DIM)
+    sub_cell.fill = PatternFill("solid", fgColor=C_HEADER_BG)
+    sub_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[2].height = 18
+
+    ws.merge_cells("A3:E3")
+    ws["A3"].fill = PatternFill("solid", fgColor=C_HEADER_BG)
+    ws.row_dimensions[3].height = 6
+
+    # ── linha de cabeçalho das colunas (linha 4) ────────────────────────────
+    COLUMNS = ["OM", "OFICINA", "DATA", "CAUSA", "DESCRIÇÃO"]
+    for col_idx, col_name in enumerate(COLUMNS, start=1):
+        cell = ws.cell(row=4, column=col_idx, value=col_name)
+        cell.font  = header_font
+        cell.fill  = header_fill
+        cell.alignment = header_align
+        cell.border = border
+    ws.row_dimensions[4].height = 22
+
+    # ── dados (a partir da linha 5) ─────────────────────────────────────────
+    export_df = df[["OM", "OFICINA", "DATA", "CAUSA", "DESCRICAO"]].copy()
+    export_df = export_df.sort_values("DATA", ascending=False).reset_index(drop=True)
+    export_df["DATA"] = pd.to_datetime(export_df["DATA"]).dt.strftime("%d/%m/%Y")
+
+    for row_idx, (_, row) in enumerate(export_df.iterrows(), start=5):
+        fill = fill_even if row_idx % 2 == 0 else fill_odd
+        values = [row["OM"], row["OFICINA"], row["DATA"], row["CAUSA"], row["DESCRICAO"]]
+        aligns = [data_align_c, data_align_l, data_align_c, data_align_c, data_align_wrap]
+        fonts  = [data_font_dim, data_font, data_font_dim, data_font, data_font_dim]
+
+        for col_idx, (val, aln, fnt) in enumerate(zip(values, aligns, fonts), start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.font      = fnt
+            cell.fill      = fill
+            cell.alignment = aln
+            cell.border    = border
+        ws.row_dimensions[row_idx].height = 16
+
+    # ── largura das colunas ─────────────────────────────────────────────────
+    col_widths = {"A": 14, "B": 30, "C": 14, "D": 22, "E": 60}
+    for col_letter, width in col_widths.items():
+        ws.column_dimensions[col_letter].width = width
+
+    # ── congelar painel no cabeçalho de colunas ─────────────────────────────
+    ws.freeze_panes = "A5"
+
+    # ── auto-filtro nos cabeçalhos ───────────────────────────────────────────
+    ws.auto_filter.ref = f"A4:E{4 + len(export_df)}"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
