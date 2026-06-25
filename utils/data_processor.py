@@ -218,7 +218,7 @@ def build_metrics(df: pd.DataFrame) -> DashboardMetrics:
         m.causa_principal_qtd = int(causas.iloc[0]["QTD"])
         m.causa_principal_pct = float(causas.iloc[0]["PERCENTUAL"])
     if len(causas) > 1:
-        m.segunda_causa = causas.iloc[1]["CAUSA"]
+        m.segunda_causa = str.replace(causas.iloc[1]["CAUSA"],"(GERFAC)", "")
         m.segunda_causa_qtd = int(causas.iloc[1]["QTD"])
         m.segunda_causa_pct = float(causas.iloc[1]["PERCENTUAL"])
 

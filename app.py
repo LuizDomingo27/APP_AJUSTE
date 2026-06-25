@@ -114,7 +114,7 @@ with st.sidebar:
         label_visibility="collapsed",
     )
 
-    st.markdown("**🏭 Oficinas**")
+    st.markdown("**Oficinas**")
     todas_oficinas = sorted(df["OFICINA"].unique())
     oficinas_sel = st.multiselect(
         "Filtrar oficinas",

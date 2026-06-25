@@ -195,14 +195,16 @@ display: flex; align-items: center; justify-content: center;
 font-size: 1.05rem;
 margin-bottom: 0.6rem;
 }}
+
 .kpi-label {{
 color: {COLORS['text_dim']};
 font-size: 0.72rem;
 font-weight: 600;
 letter-spacing: 0.06em;
 text-transform: uppercase;
-margin-bottom: 0.15rem;
+margin-bottom: 0.25rem;
 }}
+
 .kpi-value {{
 font-family: 'Manrope', sans-serif;
 font-size: 1.7rem;
@@ -214,15 +216,17 @@ overflow: hidden;
 text-overflow: ellipsis;
 max-width: 100%;
 }}
+
 .kpi-caption {{
 color: {COLORS['text_dim']};
 font-size: 0.74rem;
 margin-top: 0.15rem;
 }}
+
 .kpi-pill {{
 display: inline-block;
-margin-top: 0.55rem;
-padding: 3px 10px;
+margin-top: 0.10rem;
+padding: 0px 0px;
 border-radius: 999px;
 font-size: 0.72rem;
 font-weight: 700;
