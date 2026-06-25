@@ -110,6 +110,7 @@ with st.sidebar:
         value=(min_date, max_date),
         min_value=min_date,
         max_value=max_date,
+        format="DD/MM/YYYY",
         label_visibility="collapsed",
     )
 
