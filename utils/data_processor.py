@@ -23,7 +23,6 @@ from openpyxl.styles import (
     Alignment,
     Border,
     Font,
-    GradientFill,
     PatternFill,
     Side,
 )
