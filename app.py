@@ -274,7 +274,7 @@ tooltip_style = echarts_tooltip_style()
 
 md('<div class="section-label">Principais oficinas com problema</div>')
 
-col_tabela, col_rosca = st.columns([1.6, 1])
+col_tabela, col_rosca = st.columns([1.2, 1.1])
 
 with col_tabela:
     md('<div class="panel">')
@@ -306,6 +306,11 @@ with col_rosca:
                params.percent.toFixed(1) + '%)</span></div>';
     }}"""
 
+    rosca_label_js = f"""function(params) {{
+        return '{{nome|' + params.name + '}}\\n{{valor|' + params.value +
+               '}} {{pct|(' + params.percent.toFixed(1) + '%)}}';
+    }}"""
+
     rosca_option = {
         "tooltip": {
             **tooltip_style,
@@ -314,7 +319,7 @@ with col_rosca:
         },
         "legend": {
             "orient": "vertical",
-            "right": "2%",
+            "right": "1%",
             "top": "center",
             "textStyle": {
                 "color": COLORS["text_dim"],
@@ -328,30 +333,50 @@ with col_rosca:
         "series": [
             {
                 "type": "pie",
-                "radius": ["38%", "64%"],
-                "center": ["36%", "52%"],
+                "radius": ["44%", "70%"],
+                "center": ["38%", "52%"],
                 "avoidLabelOverlap": True,
+                "minShowLabelAngle": 8,
                 "label": {
                     "show": True,
                     "position": "outside",
-                    "formatter": "{c}",
+                    "formatter": "__ROSCA_LABEL__",
                     "color": COLORS["text"],
                     "fontSize": 11,
-                    "fontWeight": 700,
                     "fontFamily": "Inter, sans-serif",
+                    "lineHeight": 15,
+                    "rich": {
+                        "nome": {
+                            "color": COLORS["text"],
+                            "fontWeight": 700,
+                            "fontSize": 11,
+                            "fontFamily": "Inter, sans-serif",
+                        },
+                        "valor": {
+                            "color": COLORS["aqua"],
+                            "fontWeight": 800,
+                            "fontSize": 13,
+                            "fontFamily": "Inter, sans-serif",
+                        },
+                        "pct": {
+                            "color": COLORS["text_dim"],
+                            "fontSize": 11,
+                            "fontFamily": "Inter, sans-serif",
+                        },
+                    },
                 },
                 "labelLine": {
                     "show": True,
-                    "length": 10,
-                    "length2": 12,
+                    "length": 12,
+                    "length2": 14,
+                    "smooth": True,
                     "lineStyle": {"color": COLORS["text_muted"], "width": 1.2},
                 },
                 "emphasis": {
                     "label": {
                         "show": True,
-                        "fontSize": 13,
+                        "fontSize": 12,
                         "fontWeight": "bold",
-                        "color": COLORS["aqua"],
                         "fontFamily": "Inter, sans-serif",
                     },
                     "itemStyle": {
@@ -367,7 +392,14 @@ with col_rosca:
         ],
     }
 
-    render_echart(rosca_option, height=300, js_formatters={"__ROSCA_TOOLTIP__": rosca_tooltip_js})
+    render_echart(
+        rosca_option,
+        height=440,
+        js_formatters={
+            "__ROSCA_TOOLTIP__": rosca_tooltip_js,
+            "__ROSCA_LABEL__": rosca_label_js,
+        },
+    )
     md("</div>")
 
 # --------------------------------------------------------------------------- #
