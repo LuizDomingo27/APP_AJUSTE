@@ -40,91 +40,103 @@ def md(html: str) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Sidebar — upload e filtros
+# Session state — alterna entre tela de upload e dashboard
 # --------------------------------------------------------------------------- #
 
-with st.sidebar:
-    md(
-        f"""
-        <div style="display:flex; align-items:center; gap:10px; margin-bottom: 1.4rem;">
-            <div style="width:36px; height:36px; border-radius:10px;
-                        background:rgba(31,231,184,0.12); display:flex;
-                        align-items:center; justify-content:center; font-size:1.1rem;">📊</div>
-            <div>
-                <div style="font-weight:800; color:{COLORS['text']}; font-size:0.95rem;">AJUSTES &amp;</div>
-                <div style="font-weight:800; color:{COLORS['aqua']}; font-size:0.95rem;">OCORRÊNCIAS</div>
-            </div>
-        </div>
-        """
-    )
+if "show_upload" not in st.session_state:
+    st.session_state.show_upload = get_db_info() is None
 
-    st.markdown("**📂 Planilha de ocorrências**")
-    uploaded_file = st.file_uploader(
-        "Envie o arquivo (.xlsx, .xls ou .csv)",
-        type=["xlsx", "xls", "csv"],
-        label_visibility="collapsed",
-    )
-
-    st.caption(
-        "Colunas esperadas: **OM**, **OFICINA**, **DATA** e **DESCRIÇÃO/OBS**. "
-        "O app reconhece variações comuns de cabeçalho automaticamente."
-    )
-
+# Cabeçalho fixo da sidebar (aparece em ambas as telas)
+_sidebar_logo = f"""
+<div style="display:flex; align-items:center; gap:10px; margin-bottom:1.4rem;">
+    <div style="width:36px; height:36px; border-radius:10px;
+                background:rgba(31,231,184,0.12); display:flex;
+                align-items:center; justify-content:center; font-size:1.1rem;">📊</div>
+    <div>
+        <div style="font-weight:800; color:{COLORS['text']}; font-size:0.95rem;">AJUSTES &amp;</div>
+        <div style="font-weight:800; color:{COLORS['aqua']}; font-size:0.95rem;">OCORRÊNCIAS</div>
+    </div>
+</div>
+"""
 
 # --------------------------------------------------------------------------- #
-# Pipeline de dados
+# TELA DE UPLOAD
 # --------------------------------------------------------------------------- #
 
-if uploaded_file is not None:
-    # Novo arquivo: processa, persiste no SQLite e sincroniza com o GitHub.
-    try:
-        raw_df = load_dataframe(uploaded_file)
-        df = process_data(raw_df)
-    except Exception as e:
-        st.error(f"⚠️ Não foi possível processar a planilha enviada: {e}")
-        st.stop()
+if st.session_state.show_upload:
 
-    save_to_db(df)
+    with st.sidebar:
+        md(_sidebar_logo)
+        if get_db_info() is not None:
+            if st.button("← Voltar ao dashboard", use_container_width=True):
+                st.session_state.show_upload = False
+                st.rerun()
 
-    with st.spinner("Salvando..."):
-        synced = sync_to_github()
-    if synced:
-        st.toast("Dados salvos e sincronizados!", icon="✅")
-    else:
-        st.toast("Dados salvos localmente.", icon="💾")
-
-else:
-    # Sem upload: tenta carregar do banco salvo.
-    df = load_from_db()
-
-    if df is not None:
-        _db_info = get_db_info()
-        if _db_info:
-            st.toast(f"Base carregada · {_db_info['count']:,} registros · {_db_info['upload_date']}", icon="💾")
-
-    if df is None:
+    _, col, _ = st.columns([1, 1.5, 1])
+    with col:
         md(
             """
-            <div class="app-title">RESUMO <span>EXECUTIVO</span></div>
-            <div class="app-subtitle">Análise de retrabalho por oficina</div>
-            """
-        )
-        md(
-            """
-            <div class="insight-box" style="margin-top:1.5rem;">
-            👈 Envie a planilha de ocorrências na barra lateral para gerar o resumo executivo,
-            com os indicadores, tabela de oficinas e gráficos de causas e sazonalidade.
+            <div style="text-align:center; margin:3rem 0 2rem;">
+                <div class="app-title" style="justify-content:center;">
+                    AJUSTES <span>&amp; OCORRÊNCIAS</span>
+                </div>
+                <div class="app-subtitle">Envie a planilha para carregar o dashboard</div>
             </div>
             """
         )
-        st.stop()
+        md('<div class="panel" style="padding:2rem 2rem 1.5rem;">')
+        md('<div style="text-align:center; font-size:2.5rem; margin-bottom:0.5rem;">📂</div>')
+        md(
+            f'<div class="panel-title" style="text-align:center; margin-bottom:1.2rem;">'
+            f'Planilha de ocorrências</div>'
+        )
 
-if df.empty:
-    st.warning("A planilha foi lida, porém nenhuma ocorrência válida (com data e oficina) foi encontrada.")
+        uploaded_file = st.file_uploader(
+            "Envie o arquivo (.xlsx, .xls ou .csv)",
+            type=["xlsx", "xls", "csv"],
+            label_visibility="collapsed",
+        )
+        st.caption(
+            "Colunas esperadas: **OM**, **OFICINA**, **DATA** e **DESCRIÇÃO/OBS**. "
+            "O app reconhece variações comuns de cabeçalho automaticamente."
+        )
+        md("</div>")
+
+        if uploaded_file is not None:
+            try:
+                with st.spinner("Processando planilha..."):
+                    raw_df = load_dataframe(uploaded_file)
+                    df_up = process_data(raw_df)
+            except Exception as e:
+                st.error(f"⚠️ Não foi possível processar a planilha enviada: {e}")
+                st.stop()
+
+            save_to_db(df_up)
+            with st.spinner("Sincronizando..."):
+                synced = sync_to_github()
+            st.toast("Dados carregados com sucesso!", icon="✅")
+            st.session_state.show_upload = False
+            st.rerun()
+
     st.stop()
 
-# Filtros (sidebar)
+# --------------------------------------------------------------------------- #
+# DASHBOARD — carrega dados do banco
+# --------------------------------------------------------------------------- #
+
+df = load_from_db()
+if df is None or df.empty:
+    st.session_state.show_upload = True
+    st.rerun()
+
+# Sidebar — apenas filtros + botão de atualização
 with st.sidebar:
+    md(_sidebar_logo)
+
+    if st.button("🔄  Atualizar dados", use_container_width=True):
+        st.session_state.show_upload = True
+        st.rerun()
+
     st.markdown("---")
     st.markdown("**🗓️ Período**")
     min_date, max_date = df["DATA"].min().date(), df["DATA"].max().date()
