@@ -314,27 +314,42 @@ with col_rosca:
     rosca_total = sum(item["value"] for item in rosca_data)
 
     rosca_option = {
-        "title": {
-            "text": f"{rosca_total}",
-            "subtext": "Total",
-            "left": "38%",
-            "top": "44%",
-            "textAlign": "center",
-            "textVerticalAlign": "middle",
-            "textStyle": {
-                "color": COLORS["text"],
-                "fontSize": 28,
-                "fontWeight": 800,
-                "fontFamily": "Inter, sans-serif",
-            },
-            "subtextStyle": {
-                "color": COLORS["text_dim"],
-                "fontSize": 12,
-                "fontWeight": 600,
-                "fontFamily": "Inter, sans-serif",
-            },
-            "itemGap": 4,
-        },
+        "graphic": [
+            {
+                "type": "group",
+                "left": "38%",
+                "top": "52%",
+                "children": [
+                    {
+                        "type": "text",
+                        "style": {
+                            "text": str(rosca_total),
+                            "textAlign": "center",
+                            "textVerticalAlign": "middle",
+                            "fill": COLORS["text"],
+                            "fontSize": 28,
+                            "fontWeight": "bold",
+                            "fontFamily": "Inter, sans-serif",
+                            "x": 0,
+                            "y": -12,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "style": {
+                            "text": "Total",
+                            "textAlign": "center",
+                            "textVerticalAlign": "middle",
+                            "fill": COLORS["text_dim"],
+                            "fontSize": 12,
+                            "fontFamily": "Inter, sans-serif",
+                            "x": 0,
+                            "y": 14,
+                        },
+                    },
+                ],
+            }
+        ],
         "tooltip": {
             **tooltip_style,
             "trigger": "item",
