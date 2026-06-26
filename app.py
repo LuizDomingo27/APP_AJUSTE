@@ -70,13 +70,6 @@ with st.sidebar:
         "O app reconhece variações comuns de cabeçalho automaticamente."
     )
 
-    _db_info = get_db_info()
-    if _db_info:
-        st.markdown("---")
-        st.caption(
-            f"💾 Base salva: **{_db_info['count']:,}** registros  \n"
-            f"🕐 Último upload: {_db_info['upload_date']}"
-        )
 
 # --------------------------------------------------------------------------- #
 # Pipeline de dados
@@ -103,6 +96,11 @@ if uploaded_file is not None:
 else:
     # Sem upload: tenta carregar do banco salvo.
     df = load_from_db()
+
+    if df is not None:
+        _db_info = get_db_info()
+        if _db_info:
+            st.toast(f"Base carregada · {_db_info['count']:,} registros · {_db_info['upload_date']}", icon="💾")
 
     if df is None:
         md(
