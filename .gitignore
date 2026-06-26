@@ -216,3 +216,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Banco de dados SQLite — NÃO ignorar ajustes.db (precisa ir no repositório)
+# db.sqlite3 já está listado acima (Django default), mas nosso arquivo é outro:
+!ajustes.db

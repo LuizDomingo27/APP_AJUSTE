@@ -8,6 +8,8 @@ import streamlit as st
 import pandas as pd
 
 from utils.data_processor import load_dataframe, process_data, build_metrics, export_excel, FINANCIAL_CAUSES
+from utils.database import save_to_db, load_from_db, get_db_info
+from utils.github_sync import sync_to_github
 from utils.style import (
     inject_global_css,
     kpi_card,
@@ -68,33 +70,57 @@ with st.sidebar:
         "O app reconhece variações comuns de cabeçalho automaticamente."
     )
 
-if uploaded_file is None:
-    md(
-        """
-        <div class="app-title">RESUMO <span>EXECUTIVO</span></div>
-        <div class="app-subtitle">Análise de retrabalho por oficina</div>
-        """
-    )
-    md(
-        """
-        <div class="insight-box" style="margin-top:1.5rem;">
-        👈 Envie a planilha de ocorrências na barra lateral para gerar o resumo executivo,
-        com os indicadores, tabela de oficinas e gráficos de causas e sazonalidade.
-        </div>
-        """
-    )
-    st.stop()
+    _db_info = get_db_info()
+    if _db_info:
+        st.markdown("---")
+        st.caption(
+            f"💾 Base salva: **{_db_info['count']:,}** registros  \n"
+            f"🕐 Último upload: {_db_info['upload_date']}"
+        )
 
 # --------------------------------------------------------------------------- #
 # Pipeline de dados
 # --------------------------------------------------------------------------- #
 
-try:
-    raw_df = load_dataframe(uploaded_file)
-    df = process_data(raw_df)
-except Exception as e:
-    st.error(f"⚠️ Não foi possível processar a planilha enviada: {e}")
-    st.stop()
+if uploaded_file is not None:
+    # Novo arquivo: processa, persiste no SQLite e sincroniza com o GitHub.
+    try:
+        raw_df = load_dataframe(uploaded_file)
+        df = process_data(raw_df)
+    except Exception as e:
+        st.error(f"⚠️ Não foi possível processar a planilha enviada: {e}")
+        st.stop()
+
+    save_to_db(df)
+
+    with st.sidebar:
+        with st.spinner("Sincronizando..."):
+            synced = sync_to_github()
+        if synced:
+            st.success("✅ Dados salvos e sincronizados com o repositório.")
+        else:
+            st.info("💾 Dados salvos localmente. Configure GITHUB_TOKEN e GITHUB_REPO nos Secrets para persistência total.")
+
+else:
+    # Sem upload: tenta carregar do banco salvo.
+    df = load_from_db()
+
+    if df is None:
+        md(
+            """
+            <div class="app-title">RESUMO <span>EXECUTIVO</span></div>
+            <div class="app-subtitle">Análise de retrabalho por oficina</div>
+            """
+        )
+        md(
+            """
+            <div class="insight-box" style="margin-top:1.5rem;">
+            👈 Envie a planilha de ocorrências na barra lateral para gerar o resumo executivo,
+            com os indicadores, tabela de oficinas e gráficos de causas e sazonalidade.
+            </div>
+            """
+        )
+        st.stop()
 
 if df.empty:
     st.warning("A planilha foi lida, porém nenhuma ocorrência válida (com data e oficina) foi encontrada.")
