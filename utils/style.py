@@ -353,6 +353,11 @@ margin-top: 0.7rem;
 }}
 
 [data-testid="stMetricValue"] {{ color: {COLORS['text']}; }}
+
+/* Oculta o nome do arquivo exibido pelo file_uploader na sidebar */
+section[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] {{
+    display: none !important;
+}}
 </style>
 """
     st.markdown(_flush(css), unsafe_allow_html=True)

@@ -93,13 +93,12 @@ if uploaded_file is not None:
 
     save_to_db(df)
 
-    with st.sidebar:
-        with st.spinner("Sincronizando..."):
-            synced = sync_to_github()
-        if synced:
-            st.success("✅ Dados salvos e sincronizados com o repositório.")
-        else:
-            st.info("💾 Dados salvos localmente. Configure GITHUB_TOKEN e GITHUB_REPO nos Secrets para persistência total.")
+    with st.spinner("Salvando..."):
+        synced = sync_to_github()
+    if synced:
+        st.toast("Dados salvos e sincronizados!", icon="✅")
+    else:
+        st.toast("Dados salvos localmente.", icon="💾")
 
 else:
     # Sem upload: tenta carregar do banco salvo.
