@@ -358,6 +358,204 @@ margin-top: 0.7rem;
 section[data-testid="stSidebar"] [data-testid="stFileUploaderFile"] {{
     display: none !important;
 }}
+
+/* ======================================================= */
+/* FORMULÁRIOS — inputs, labels, selects, botões, cards    */
+/* ======================================================= */
+
+/* Labels dos campos */
+[data-testid="stTextInput"] > label,
+[data-testid="stTextArea"] > label,
+[data-testid="stDateInput"] > label,
+[data-testid="stSelectbox"] > label {{
+    color: {COLORS['text_dim']} !important;
+    font-size: 0.72rem !important;
+    font-weight: 700 !important;
+    letter-spacing: 0.09em !important;
+    text-transform: uppercase !important;
+    margin-bottom: 2px !important;
+}}
+
+/* Text inputs */
+[data-testid="stTextInput"] input {{
+    background: rgba(4, 7, 10, 0.92) !important;
+    border: 1px solid rgba(31,231,184,0.2) !important;
+    border-radius: 10px !important;
+    color: {COLORS['text']} !important;
+    font-size: 0.92rem !important;
+    transition: border-color 0.22s, box-shadow 0.22s !important;
+}}
+[data-testid="stTextInput"] input:focus {{
+    border-color: rgba(31,231,184,0.6) !important;
+    box-shadow: 0 0 0 3px rgba(31,231,184,0.10) !important;
+    outline: none !important;
+}}
+
+/* Textarea */
+[data-testid="stTextArea"] textarea {{
+    background: rgba(4, 7, 10, 0.92) !important;
+    border: 1px solid rgba(31,231,184,0.2) !important;
+    border-radius: 10px !important;
+    color: {COLORS['text']} !important;
+    font-size: 0.92rem !important;
+    transition: border-color 0.22s, box-shadow 0.22s !important;
+    resize: vertical !important;
+}}
+[data-testid="stTextArea"] textarea:focus {{
+    border-color: rgba(31,231,184,0.6) !important;
+    box-shadow: 0 0 0 3px rgba(31,231,184,0.10) !important;
+}}
+
+/* Date input */
+[data-testid="stDateInput"] input {{
+    background: rgba(4, 7, 10, 0.92) !important;
+    border: 1px solid rgba(31,231,184,0.2) !important;
+    border-radius: 10px !important;
+    color: {COLORS['text']} !important;
+    font-size: 0.92rem !important;
+}}
+
+/* Selectbox — trigger container */
+[data-testid="stSelectbox"] [data-baseweb="select"] > div:first-child {{
+    background: rgba(4, 7, 10, 0.92) !important;
+    border: 1px solid rgba(31,231,184,0.2) !important;
+    border-radius: 10px !important;
+    transition: border-color 0.22s !important;
+}}
+[data-testid="stSelectbox"] [data-baseweb="select"] svg {{
+    fill: {COLORS['aqua']} !important;
+}}
+
+/* Form container → card com tarja superior */
+[data-testid="stForm"] {{
+    background: linear-gradient(165deg, {COLORS['bg_card']} 0%, {COLORS['bg_card_alt']} 100%) !important;
+    border: 1px solid {COLORS['border']} !important;
+    border-radius: 18px !important;
+    padding: 1.5rem 1.8rem 1.7rem !important;
+    position: relative !important;
+    overflow: hidden !important;
+    box-shadow: 0 8px 36px rgba(0,0,0,0.35) !important;
+    margin-bottom: 0 !important;
+}}
+[data-testid="stForm"]::before {{
+    content: "" !important;
+    position: absolute !important;
+    top: 0; left: 0; right: 0 !important;
+    height: 3px !important;
+    background: linear-gradient(90deg, {COLORS['aqua']}, {COLORS['aqua_soft']}, transparent) !important;
+    pointer-events: none !important;
+}}
+
+/* Botões — base comum */
+.stButton > button,
+.stFormSubmitButton > button {{
+    border-radius: 10px !important;
+    font-weight: 600 !important;
+    font-size: 0.88rem !important;
+    letter-spacing: 0.025em !important;
+    transition: all 0.2s ease !important;
+    font-family: 'Inter', sans-serif !important;
+}}
+
+/* Botão primary */
+.stButton > button[kind="primary"],
+.stFormSubmitButton > button[kind="primaryFormSubmit"] {{
+    background: linear-gradient(135deg, {COLORS['aqua']} 0%, {COLORS['aqua_soft']} 100%) !important;
+    color: #04140F !important;
+    border: none !important;
+    font-weight: 700 !important;
+    box-shadow: 0 4px 18px rgba(31,231,184,0.28) !important;
+}}
+.stButton > button[kind="primary"]:hover,
+.stFormSubmitButton > button[kind="primaryFormSubmit"]:hover {{
+    box-shadow: 0 6px 26px rgba(31,231,184,0.46) !important;
+    filter: brightness(1.07) !important;
+    transform: translateY(-1px) !important;
+}}
+
+/* Botão secondary / padrão */
+.stButton > button:not([kind="primary"]),
+.stFormSubmitButton > button[kind="secondaryFormSubmit"] {{
+    background: rgba(31,231,184,0.07) !important;
+    color: {COLORS['aqua']} !important;
+    border: 1px solid rgba(31,231,184,0.28) !important;
+}}
+.stButton > button:not([kind="primary"]):hover,
+.stFormSubmitButton > button[kind="secondaryFormSubmit"]:hover {{
+    background: rgba(31,231,184,0.13) !important;
+    border-color: rgba(31,231,184,0.52) !important;
+    box-shadow: 0 2px 12px rgba(31,231,184,0.15) !important;
+    transform: translateY(-1px) !important;
+}}
+
+/* Divisor de seção dentro do formulário */
+.form-section-label {{
+    color: {COLORS['text_muted']};
+    font-size: 0.67rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin: 1.25rem 0 0.2rem;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid rgba(31,231,184,0.1);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}}
+.form-section-label::before {{
+    content: "";
+    width: 4px; height: 4px;
+    border-radius: 50%;
+    background: {COLORS['aqua']};
+    opacity: 0.55;
+    display: inline-block;
+    flex-shrink: 0;
+}}
+.form-section-label:first-child {{
+    margin-top: 0;
+}}
+
+/* Hero header das páginas de formulário */
+.page-hero {{
+    text-align: center;
+    margin: 1.8rem 0 1.5rem;
+}}
+.page-hero-icon {{
+    width: 56px; height: 56px;
+    border-radius: 16px;
+    background: rgba(31,231,184,0.1);
+    border: 1px solid rgba(31,231,184,0.22);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    margin-bottom: 0.8rem;
+    box-shadow: 0 0 28px rgba(31,231,184,0.12);
+}}
+.page-hero-title {{
+    font-family: 'Manrope', sans-serif;
+    font-weight: 800;
+    font-size: 1.72rem;
+    letter-spacing: -0.02em;
+    color: {COLORS['text']};
+    margin-bottom: 0.2rem;
+}}
+.page-hero-title span {{
+    color: {COLORS['aqua']};
+    text-shadow: 0 0 18px rgba(31,231,184,0.38);
+}}
+.page-hero-subtitle {{
+    color: {COLORS['text_muted']};
+    font-size: 0.83rem;
+    letter-spacing: 0.05em;
+}}
+
+/* Espaçador antes do botão de submit */
+.form-submit-spacer {{
+    margin-top: 1.4rem;
+    padding-top: 1rem;
+    border-top: 1px solid rgba(31,231,184,0.08);
+}}
 </style>
 """
     st.markdown(_flush(css), unsafe_allow_html=True)
