@@ -30,7 +30,7 @@ from utils.view_dashboard import render_dashboard
 from utils.view_upload import render_pagina_upload
 
 st.set_page_config(
-    page_title="Ajustes & Ocorrências | Resumo Executivo",
+    page_title="Ajustes & Ocorrências",
     page_icon="📊",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -59,25 +59,25 @@ if "show_editar_registro" not in st.session_state:
 # Sidebar — logo (exibido em todas as rotas)
 # --------------------------------------------------------------------------- #
 
-_SIDEBAR_LOGO = f"""
-<div style="display:flex; align-items:center; gap:10px; margin-bottom:1.4rem;">
-    <div style="width:36px; height:36px; border-radius:10px;
-                background:rgba(31,231,184,0.12); display:flex;
-                align-items:center; justify-content:center; font-size:1.1rem;">📊</div>
-    <div>
-        <div style="font-weight:800; color:{COLORS['text']}; font-size:0.95rem;">AJUSTES &amp;</div>
-        <div style="font-weight:800; color:{COLORS['aqua']}; font-size:0.95rem;">OCORRÊNCIAS</div>
-    </div>
-</div>
-"""
-
+#_SIDEBAR_LOGO = f"""
+#<div style="display:flex; align-items:center; gap:10px; margin-bottom:1.4rem;">
+#    <div style="width:36px; height:36px; border-radius:10px;
+#                background:rgba(31,231,184,0.12); display:flex;
+#                align-items:center; justify-content:center; font-size:1.1rem;">📊</div>
+#    <div>
+#        <div style="font-weight:800; color:{COLORS['text']}; font-size:0.95rem;">AJUSTES &amp;</div>
+#        <div style="font-weight:800; color:{COLORS['aqua']}; font-size:0.95rem;">OCORRÊNCIAS</div>
+#    </div>
+#</div>
+#"""
+#
 # --------------------------------------------------------------------------- #
 # Rota: tela de upload
 # --------------------------------------------------------------------------- #
 
 if st.session_state.show_upload:
     with st.sidebar:
-        _md(_SIDEBAR_LOGO)
+        #_md(_SIDEBAR_LOGO)
         if get_db_info() is not None:
             if st.button("← Voltar ao dashboard", use_container_width=True):
                 st.session_state.show_upload = False
@@ -104,7 +104,7 @@ if df is None or df.empty:
 
 if st.session_state.show_novo_registro:
     with st.sidebar:
-        _md(_SIDEBAR_LOGO)
+        #_md(_SIDEBAR_LOGO)
         if st.button("← Voltar ao dashboard", use_container_width=True):
             st.session_state.show_novo_registro = False
             st.rerun()
@@ -117,7 +117,7 @@ if st.session_state.show_novo_registro:
 
 if st.session_state.show_editar_registro:
     with st.sidebar:
-        _md(_SIDEBAR_LOGO)
+        #_md(_SIDEBAR_LOGO)
         if st.button("← Voltar ao dashboard", use_container_width=True):
             st.session_state.show_editar_registro = False
             st.rerun()
@@ -129,7 +129,7 @@ if st.session_state.show_editar_registro:
 # --------------------------------------------------------------------------- #
 
 with st.sidebar:
-    _md(_SIDEBAR_LOGO)
+    #_md(_SIDEBAR_LOGO)
     if st.button("➕  Novo registro", use_container_width=True, type="primary"):
         st.session_state.show_novo_registro = True
         st.rerun()

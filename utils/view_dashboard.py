@@ -100,18 +100,19 @@ def _render_filtros(df: pd.DataFrame) -> pd.DataFrame:
 def _render_header(m: DashboardMetrics) -> None:
     h1, h2 = st.columns([3, 1.1])
     with h1:
-        _md('<div class="app-title">ANÁLISE <span>DE RETRABALHO POR OFICINA</span></div>')
-    with h2:
-        _md(
-            f"""
-            <div class="panel" style="padding: 0.7rem 1rem; margin-top:4px;">
-                <div class="kpi-label">📅 Período analisado</div>
-                <div style="color:{COLORS['text']}; font-weight:700; font-size:0.92rem;">
-                    {m.periodo_inicio} a {m.periodo_fim}
-                </div>
-            </div>
-            """
-        )
+        _md('<div class="app-title">AJUSTE NO <span>VALOR UNITÁRIO</span></div>')
+        _md('<H5 class="app-title">INTEGRAÇÃO <span>GERFAC</span></H5>')
+    #with h2:
+    #    _md(
+    #        f"""
+    #        <div class="panel" style="padding: 0.7rem 1rem; margin-top:4px; margin-bottom: 0.5rem; align-items:center; display:flex; flex-direction:column; gap:0.2rem; border-radius:0.5rem;width:50%; min-width:160px; align:right;">
+    #            <div class="kpi-label" style="text-align: right;">📅 Período analisado</div>
+    #            <div style="color:{COLORS['text']}; font-weight:700; font-size:0.92rem;">
+    #                {m.periodo_inicio} a {m.periodo_fim}
+    #            </div>
+    #        </div>
+    #        """
+    #    )
 
 
 # --------------------------------------------------------------------------- #
