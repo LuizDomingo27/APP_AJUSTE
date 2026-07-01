@@ -87,38 +87,30 @@ def build_rosca(causas_resumo: pd.DataFrame) -> tuple[dict, dict]:
     option = {
         "graphic": [
             {
-                "type": "group",
+                "type": "text",
                 "left": "38%",
                 "top": "52%",
-                "children": [
-                    {
-                        "type": "text",
-                        "style": {
-                            "text": str(total),
-                            "textAlign": "center",
-                            "textVerticalAlign": "middle",
+                "style": {
+                    "text": "{valor|" + str(total) + "}\n{rotulo|Total}",
+                    "textAlign": "center",
+                    "textVerticalAlign": "middle",
+                    "fontFamily": "Inter, sans-serif",
+                    "rich": {
+                        "valor": {
                             "fill": COLORS["text"],
                             "fontSize": 28,
                             "fontWeight": "bold",
-                            "fontFamily": "Inter, sans-serif",
-                            "x": 0,
-                            "y": -12,
+                            "lineHeight": 32,
+                            "align": "center",
                         },
-                    },
-                    {
-                        "type": "text",
-                        "style": {
-                            "text": "Total",
-                            "textAlign": "center",
-                            "textVerticalAlign": "middle",
+                        "rotulo": {
                             "fill": COLORS["text_dim"],
                             "fontSize": 12,
-                            "fontFamily": "Inter, sans-serif",
-                            "x": 0,
-                            "y": 14,
+                            "lineHeight": 16,
+                            "align": "center",
                         },
                     },
-                ],
+                },
             }
         ],
         "tooltip": {**_tt(), "trigger": "item", "formatter": "__ROSCA_TOOLTIP__"},
@@ -138,8 +130,8 @@ def build_rosca(causas_resumo: pd.DataFrame) -> tuple[dict, dict]:
         "series": [
             {
                 "type": "pie",
-                "radius": ["44%", "70%"],
-                "center": ["38%", "52%"],
+                "radius": ["40%", "65%"],
+                "center": ["40%", "51%"],
                 "avoidLabelOverlap": True,
                 "minShowLabelAngle": 8,
                 "label": {
