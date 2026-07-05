@@ -102,16 +102,16 @@ def normalize_columns(df: pd.DataFrame) -> pd.DataFrame:
 
 # Ordem importa: a primeira regra que casar define a causa.
 CAUSE_RULES: list[tuple[str, list[str]]] = [
-    ("Descontos", ["desconto"]),
+    ("Descontos", ["desconto", "desconte"]),
     ("Balanceamento", ["balanceamento"]),
     ("Reembolso", ["reembolso"]),
-    ("Arredondamento", ["arredond"]),
+    ("Arredondamento", ["arredond", "redond"]),
     ("Tempo Divergente", ["tempo divergente", "tempo/preco", "tempo"]),
     ("Valor Unitário", ["unit", "valor errado", "preco", "valor"]),
     ("Erro de Cálculo", ["calculo"]),
     (
         "Integração/Sistema (GERFAC)",
-        ["integra", "conector", "gerfac", "critica", "suporte", "falta"],
+        ["integra", "conector", "gerfac", "critica", "suporte", "falta", "plm"],
     ),
 ]
 
@@ -281,8 +281,53 @@ def build_metrics(df: pd.DataFrame) -> DashboardMetrics:
 
 
 # --------------------------------------------------------------------------- #
+# Regra Separada: Cálculo de Sazonalidade e Variação Percentual
+# --------------------------------------------------------------------------- #
+
+def calculate_seasonality(df: pd.DataFrame, granularity: str) -> pd.DataFrame:
+    """Calcula a série temporal agrupada por 'Dia', 'Semana' ou 'Mês'
+    e calcula a variação percentual em relação ao período anterior.
+
+    Regra separada desenvolvida de forma modular.
+    """
+    if df.empty:
+        return pd.DataFrame(columns=["PERIODO", "QTD", "VARIACAO", "MEDIA_MOVEL"])
+
+    df = df.copy()
+
+    if granularity == "Dia":
+        df["PERIODO"] = df["DATA"].dt.date
+    elif granularity == "Semana":
+        # Agrupa pelo início da semana (segunda-feira)
+        df["PERIODO"] = (df["DATA"] - pd.to_timedelta(df["DATA"].dt.weekday, unit='D')).dt.date
+    elif granularity == "Mês":
+        # Agrupa pelo início do mês
+        df["PERIODO"] = df["DATA"].dt.to_period('M').dt.to_timestamp().dt.date
+    else:
+        raise ValueError(f"Granularidade inválida: {granularity}")
+
+    serie = (
+        df.groupby("PERIODO")
+        .size()
+        .rename("QTD")
+        .reset_index()
+        .sort_values("PERIODO")
+    )
+
+    # Variação percentual em relação ao período anterior
+    serie["VARIACAO"] = serie["QTD"].pct_change().fillna(0.0) * 100
+    serie["VARIACAO"] = serie["VARIACAO"].round(1)
+
+    # Média móvel de 3 períodos
+    serie["MEDIA_MOVEL"] = serie["QTD"].rolling(window=3, min_periods=1).mean().round(1)
+
+    return serie
+
+
+# --------------------------------------------------------------------------- #
 # Exportação — planilha executiva (.xlsx)
 # --------------------------------------------------------------------------- #
+
 
 def export_excel(df: pd.DataFrame, periodo_inicio: str, periodo_fim: str) -> bytes:
     """Gera um arquivo Excel executivo com os registros de df (já filtrado).

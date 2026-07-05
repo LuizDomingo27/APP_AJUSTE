@@ -58,14 +58,14 @@ def build_rosca(causas_resumo: pd.DataFrame) -> tuple[dict, dict]:
     (option, js_formatters) prontos para render_echart().
     """
     top4 = causas_resumo.head(4).reset_index(drop=True)
-    outros_qtd = int(causas_resumo.iloc[4:]["QTD"].sum()) if len(causas_resumo) > 4 else 0
+    #outros_qtd = int(causas_resumo.iloc[5:]["QTD"].sum()) if len(causas_resumo) > 5 else 0
 
     rosca_data = [
         {"value": int(row["QTD"]), "name": row["CAUSA"]}
         for _, row in top4.iterrows()
     ]
-    if outros_qtd > 0:
-        rosca_data.append({"value": outros_qtd, "name": "Demais"})
+    #if outros_qtd > 0:
+    #    rosca_data.append({"value": outros_qtd, "name": "Demais"})
 
     palette = CHART_PALETTE[:4] + [COLORS["text_muted"]]
     total = sum(item["value"] for item in rosca_data)
@@ -73,9 +73,9 @@ def build_rosca(causas_resumo: pd.DataFrame) -> tuple[dict, dict]:
     tooltip_js = f"""function(params) {{
         return '<div style="font-weight:700;color:{COLORS['text']};margin-bottom:4px;">' +
                params.marker + params.name + '</div>' +
-               '<div style="color:{COLORS['text_dim']};font-size:12px;">' +
-               '<span style="color:{COLORS['text']};font-weight:700;">' + params.value + '</span>' +
-               ' ocorrências &nbsp;<span style="color:{COLORS['aqua']};font-weight:700;">(' +
+               '<div style="color:{COLORS['text']};font-size:12px;">' +
+               '<span style="color:' + params.color + ';font-weight:800;">' + params.value + '</span>' +
+               ' ocorrências &nbsp;<span style="color:{COLORS['aqua']};font-weight:800;">(' +
                params.percent.toFixed(1) + '%)</span></div>';
     }}"""
 
@@ -88,8 +88,8 @@ def build_rosca(causas_resumo: pd.DataFrame) -> tuple[dict, dict]:
         "graphic": [
             {
                 "type": "text",
-                "left": "38%",
-                "top": "52%",
+                "left": "40%",
+                "top": "48%",
                 "style": {
                     "text": "{valor|" + str(total) + "}\n{rotulo|Total}",
                     "textAlign": "center",
@@ -130,8 +130,8 @@ def build_rosca(causas_resumo: pd.DataFrame) -> tuple[dict, dict]:
         "series": [
             {
                 "type": "pie",
-                "radius": ["40%", "65%"],
-                "center": ["40%", "51%"],
+                "radius": ["40%", "64%"],
+                "center": ["42%", "51%"],
                 "avoidLabelOverlap": True,
                 "minShowLabelAngle": 8,
                 "label": {
@@ -211,8 +211,8 @@ def build_ranking(oficinas_resumo: pd.DataFrame) -> tuple[dict, dict]:
         var p = params[0];
         return '<div style="font-weight:700;color:{COLORS['text']};margin-bottom:4px;">' +
                p.marker + p.name + '</div>' +
-               '<div style="color:{COLORS['text_dim']};font-size:12px;">' +
-               '<span style="color:{COLORS['text']};font-weight:700;">' + p.value +
+               '<div style="color:{COLORS['text']};font-size:12px;">' +
+               '<span style="color:' + p.color + ';font-weight:800;">' + p.value +
                '</span> ocorrências</div>';
     }}"""
 
@@ -279,9 +279,9 @@ def build_causas(causas_resumo: pd.DataFrame) -> tuple[dict, dict]:
         var pct = params.data.pct;
         return '<div style="font-weight:700;color:{COLORS['text']};margin-bottom:4px;">' +
                params.marker + params.name + '</div>' +
-               '<div style="color:{COLORS['text_dim']};font-size:12px;">' +
-               params.value +
-               ' ocorrências &nbsp;<span style="color:{COLORS['aqua']};font-weight:700;">(' +
+               '<div style="color:{COLORS['text']};font-size:12px;">' +
+               '<span style="color:' + params.color + ';font-weight:800;">' + params.value + '</span>' +
+               ' ocorrências &nbsp;<span style="color:{COLORS['aqua']};font-weight:800;">(' +
                pct.toFixed(1) + '%)</span></div>';
     }}"""
 
@@ -356,14 +356,13 @@ def build_pareto(pareto_oficinas: pd.DataFrame) -> tuple[dict, dict]:
                    params[0].axisValueLabel + '</div>';
         params.forEach(function(p) {{
             var val = p.seriesIndex === 0
-                ? '<b>' + p.value + '</b> ocorrências'
-                : '<b>' + (typeof p.value === 'number' ? p.value.toFixed(1) : p.value) +
+                ? '<b style="color:' + p.color + ';font-weight:800;">' + p.value + '</b> ocorrências'
+                : '<b style="color:' + p.color + ';font-weight:800;">' + (typeof p.value === 'number' ? p.value.toFixed(1) : p.value) +
                   '%</b> acumulado';
             html += '<div style="display:flex;align-items:center;justify-content:space-between;' +
-                    'gap:16px;color:{COLORS['text_dim']};font-size:12px;margin-top:3px;">' +
+                    'gap:16px;color:{COLORS['text']};font-size:12px;margin-top:3px;">' +
                     '<span>' + p.marker + p.seriesName + '</span>' +
-                    '<span style="font-weight:700;color:{COLORS['text']};">' + val +
-                    '</span></div>';
+                    '<span>' + val + '</span></div>';
         }});
         return html;
     }}"""
@@ -469,27 +468,57 @@ def build_pareto(pareto_oficinas: pd.DataFrame) -> tuple[dict, dict]:
 # Linha — sazonalidade diária com média móvel
 # --------------------------------------------------------------------------- #
 
-def build_linha(serie_diaria: pd.DataFrame) -> tuple[dict, dict]:
-    """Linha com área — ocorrências por dia e média móvel de 3 dias.
-
-    A média móvel (linha pontilhada âmbar) ajuda a identificar tendência
-    de alta ou queda filtrando o ruído dia a dia.
+def build_linha(serie_diaria: pd.DataFrame, granularity: str = "Dia") -> tuple[dict, dict]:
+    """Linha com área — ocorrências por período, média móvel e variação percentual.
 
     Parâmetros
     ----------
-    serie_diaria : DataFrame[DIA, QTD, MEDIA_MOVEL]
-        Saída de DashboardMetrics.serie_diaria (ordenado por DIA asc).
+    serie_diaria : DataFrame[PERIODO, QTD, VARIACAO, MEDIA_MOVEL]
+        Saída de calculate_seasonality (ordenado por PERIODO asc).
     """
-    dias_fmt = pd.to_datetime(serie_diaria["DIA"]).dt.strftime("%d/%m").tolist()
+    if serie_diaria.empty:
+        return {}, {}
+
+    periods = pd.to_datetime(serie_diaria["PERIODO"])
+
+    if granularity == "Dia":
+        x_data = periods.dt.strftime("%d/%m").tolist()
+        label_qtd = "Ocorrências/dia"
+        label_media = "Média móvel (3d)"
+    elif granularity == "Semana":
+        x_data = [f"W-{dt.isocalendar().week}" for dt in periods]
+        label_qtd = "Ocorrências/semana"
+        label_media = "Média móvel (3s)"
+    elif granularity == "Mês":
+        PT_MONTHS = {
+            1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun",
+            7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"
+        }
+        x_data = [f"{PT_MONTHS[dt.month]}/{str(dt.year)[2:]}" for dt in periods]
+        label_qtd = "Ocorrências/mês"
+        label_media = "Média móvel (3m)"
+    else:
+        x_data = periods.dt.strftime("%d/%m").tolist()
+        label_qtd = "Ocorrências"
+        label_media = "Média móvel"
 
     tooltip_js = f"""function(params) {{
         var html = '<div style="font-weight:700;color:{COLORS['text']};margin-bottom:6px;">' +
                     params[0].axisValueLabel + '</div>';
         params.forEach(function(p) {{
+            var val_formatted = p.value;
+            if (p.seriesName === "Variação (%)") {{
+                if (p.value !== undefined && p.value !== null) {{
+                    var numVal = Number(p.value);
+                    val_formatted = (numVal >= 0 ? "+" : "") + numVal.toFixed(1) + "%";
+                }} else {{
+                    val_formatted = "0.0%";
+                }}
+            }}
             html += '<div style="display:flex;align-items:center;justify-content:space-between;' +
-                    'gap:16px;color:{COLORS['text_dim']};font-size:12px;margin-top:3px;">' +
+                    'gap:16px;color:{COLORS['text']};font-size:12px;margin-top:3px;">' +
                     '<span>' + p.marker + p.seriesName + '</span>' +
-                    '<span style="font-weight:700;color:{COLORS['text']};">' + p.value +
+                    '<span style="font-weight:800;color:' + p.color + ';">' + val_formatted +
                     '</span></div>';
         }});
         return html;
@@ -498,7 +527,7 @@ def build_linha(serie_diaria: pd.DataFrame) -> tuple[dict, dict]:
     option = {
         "tooltip": {**_tt(), "trigger": "axis", "formatter": "__SAZONALIDADE_TOOLTIP__"},
         "legend": {
-            "data": ["Ocorrências/dia", "Média móvel (3d)"],
+            "data": [label_qtd, label_media, "Variação (%)"],
             "bottom": 0,
             "textStyle": {
                 "color": COLORS["text_dim"],
@@ -506,10 +535,10 @@ def build_linha(serie_diaria: pd.DataFrame) -> tuple[dict, dict]:
                 "fontFamily": "Inter, sans-serif",
             },
         },
-        "grid": {"left": "1%", "right": "2%", "top": "6%", "bottom": "16%", "containLabel": True},
+        "grid": {"left": "1%", "right": "6%", "top": "12%", "bottom": "18%", "containLabel": True},
         "xAxis": {
             "type": "category",
-            "data": dias_fmt,
+            "data": x_data,
             "boundaryGap": False,
             "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.12)"}},
             "axisTick": {"show": False},
@@ -519,18 +548,29 @@ def build_linha(serie_diaria: pd.DataFrame) -> tuple[dict, dict]:
                 "fontFamily": "Inter, sans-serif",
             },
         },
-        "yAxis": {
-            "type": "value",
-            "splitLine": {"lineStyle": {"color": "rgba(255,255,255,0.05)"}},
-            "axisLabel": {"color": COLORS["text_dim"], "fontFamily": "Inter, sans-serif"},
-        },
+        "yAxis": [
+            {
+                "type": "value",
+                "name": "Ocorrências",
+                "nameTextStyle": {"color": COLORS["text_dim"], "fontSize": 10},
+                "splitLine": {"show": False},
+                "axisLabel": {"show": False},
+            },
+            {
+                "type": "value",
+                "name": "Variação (%)",
+                "nameTextStyle": {"color": COLORS["text_dim"], "fontSize": 10},
+                "splitLine": {"show": False},
+                "axisLabel": {"show": False},
+            },
+        ],
         "series": [
             {
-                "name": "Ocorrências/dia",
+                "name": label_qtd,
                 "type": "line",
                 "smooth": True,
                 "symbolSize": 6,
-                "data": serie_diaria["QTD"].tolist(),
+                "data": [int(v) for v in serie_diaria["QTD"]],
                 "lineStyle": {"color": COLORS["aqua"], "width": 2.5},
                 "itemStyle": {"color": COLORS["aqua"]},
                 "areaStyle": {
@@ -545,12 +585,22 @@ def build_linha(serie_diaria: pd.DataFrame) -> tuple[dict, dict]:
                 },
             },
             {
-                "name": "Média móvel (3d)",
+                "name": label_media,
                 "type": "line",
                 "smooth": True,
                 "showSymbol": False,
-                "data": serie_diaria["MEDIA_MOVEL"].tolist(),
+                "data": [float(v) for v in serie_diaria["MEDIA_MOVEL"]],
                 "lineStyle": {"color": COLORS["amber"], "width": 2, "type": "dotted"},
+            },
+            {
+                "name": "Variação (%)",
+                "type": "line",
+                "yAxisIndex": 1,
+                "smooth": True,
+                "symbolSize": 6,
+                "data": [float(v) for v in serie_diaria["VARIACAO"]],
+                "lineStyle": {"color": COLORS["green"], "width": 2},
+                "itemStyle": {"color": COLORS["green"]},
             },
         ],
     }

@@ -73,6 +73,26 @@ def _render_filtros(df: pd.DataFrame) -> pd.DataFrame:
             label_visibility="collapsed",
         )
 
+        # Aplicar filtro de período temporário para listar apenas as semanas relevantes
+        df_period = df.copy()
+        if isinstance(date_range, tuple) and len(date_range) == 2:
+            ini, fim = date_range
+            df_period = df_period[(df_period["DATA"].dt.date >= ini) & (df_period["DATA"].dt.date <= fim)]
+
+        st.markdown("**📅 Semana**")
+        if not df_period.empty:
+            semanas_ordenadas = sorted(df_period["DATA"].dt.isocalendar().week.unique())
+            semanas_opcoes = ["Todas"] + [f"W-{w}" for w in semanas_ordenadas]
+        else:
+            semanas_opcoes = ["Todas"]
+
+        semana_sel = st.selectbox(
+            "Filtrar por semana",
+            options=semanas_opcoes,
+            index=0,
+            label_visibility="collapsed",
+        )
+
         st.markdown("**Oficinas**")
         todas_oficinas = sorted(df["OFICINA"].unique())
         oficinas_sel = st.multiselect(
@@ -87,6 +107,14 @@ def _render_filtros(df: pd.DataFrame) -> pd.DataFrame:
     if isinstance(date_range, tuple) and len(date_range) == 2:
         ini, fim = date_range
         df_f = df_f[(df_f["DATA"].dt.date >= ini) & (df_f["DATA"].dt.date <= fim)]
+    
+    if semana_sel != "Todas":
+        try:
+            week_num = int(semana_sel.split("-")[1])
+            df_f = df_f[df_f["DATA"].dt.isocalendar().week == week_num]
+        except (IndexError, ValueError):
+            pass
+
     if oficinas_sel:
         df_f = df_f[df_f["OFICINA"].isin(oficinas_sel)]
 
@@ -211,17 +239,17 @@ def _render_ranking_e_causas(m: DashboardMetrics) -> None:
         _md('<div class="panel">')
         option, fmts = build_causas(m.causas_resumo)
         render_echart(option, height=360, js_formatters=fmts)
-        _md(
-            f"""
-            <div class="insight-box">
-            💡 As causas financeiras (Descontos, Balanceamento, Valor Unitário e Reembolso)
-            concentram <b style="color:{COLORS['aqua']};">{m.pct_financeiro}%</b> de todas as
-            ocorrências do período — oportunidade clara de revisão de processo de cadastro de
-            preços e regras de fechamento.
-            </div>
-            """
-        )
-        _md("</div>")
+        #_md(
+        #    f"""
+        #    <div class="insight-box">
+        #    💡 As causas financeiras (Descontos, Balanceamento, Valor Unitário e Reembolso)
+        #    concentram <b style="color:{COLORS['aqua']};">{m.pct_financeiro}%</b> de todas as
+        #    ocorrências do período — oportunidade clara de revisão de processo de cadastro de
+        #    preços e regras de fechamento.
+        #    </div>
+        #    """
+        #)
+        #_md("</div>")
 
 
 # --------------------------------------------------------------------------- #
@@ -239,10 +267,9 @@ def _render_pareto(m: DashboardMetrics) -> None:
     _md(
         f"""
         <div class="insight-box">
-        📊 <b style="color:{COLORS['aqua']};">{pareto_label}</b>
+        <b style="color:{COLORS['aqua']};">{pareto_label}</b>
         ({m.pareto_80pct_pct_oficinas}% do total de {m.qtd_oficinas_total})
         respondem por <b style="color:{COLORS['amber']};">80% de todas as ocorrências</b> —
-        foco de ação imediata para reduzir o volume de ajustes.
         </div>
         """
     )
@@ -333,23 +360,60 @@ def _render_outros(m: DashboardMetrics) -> None:
 
 
 # --------------------------------------------------------------------------- #
-# Seção 7 — Sazonalidade diária
+# Seção 7 — Sazonalidade temporal
 # --------------------------------------------------------------------------- #
 
-def _render_sazonalidade(m: DashboardMetrics) -> None:
-    _md('<div class="section-label">Sazonalidade — tendência diária</div>')
+def _render_sazonalidade(df_filtrado: pd.DataFrame) -> None:
+    col_lbl, col_ctrl = st.columns([2, 1])
+    with col_lbl:
+        _md('<div class="section-label" style="margin-top:0;">Sazonalidade — tendência temporal</div>')
+    with col_ctrl:
+        granularity = st.radio(
+            "Visualizar por:",
+            options=["Dia", "Semana", "Mês"],
+            index=0,
+            horizontal=True,
+            key="sazonalidade_granularity",
+            label_visibility="collapsed",
+        )
+
     _md('<div class="panel">')
 
-    option, fmts = build_linha(m.serie_diaria)
+    from utils.data_processor import calculate_seasonality
+    serie_agrupada = calculate_seasonality(df_filtrado, granularity)
+
+    if serie_agrupada.empty:
+        st.warning("Sem dados para a sazonalidade no período selecionado.")
+        _md("</div>")
+        return
+
+    option, fmts = build_linha(serie_agrupada, granularity)
     render_echart(option, height=360, js_formatters=fmts)
 
-    pico = m.serie_diaria.loc[m.serie_diaria["QTD"].idxmax()]
+    pico = serie_agrupada.loc[serie_agrupada["QTD"].idxmax()]
+    
+    PT_MONTHS = {
+        1: "Jan", 2: "Fev", 3: "Mar", 4: "Abr", 5: "Mai", 6: "Jun",
+        7: "Jul", 8: "Ago", 9: "Set", 10: "Out", 11: "Nov", 12: "Dez"
+    }
+
+    if granularity == "Dia":
+        pico_str = pd.to_datetime(pico['PERIODO']).strftime('%d/%m/%Y')
+        label_pico = "Dia de pico"
+    elif granularity == "Semana":
+        dt_pico = pd.to_datetime(pico['PERIODO'])
+        pico_str = f"W-{dt_pico.isocalendar().week} (início em {dt_pico.strftime('%d/%m/%Y')})"
+        label_pico = "Semana de pico"
+    else:
+        dt = pd.to_datetime(pico['PERIODO'])
+        pico_str = f"{PT_MONTHS[dt.month]}/{dt.year}"
+        label_pico = "Mês de pico"
+
     _md(
         f"""
         <div class="insight-box">
-        📌 Pico de <b style="color:{COLORS['aqua']};">{int(pico['QTD'])} ocorrências</b> em
-        <b>{pd.to_datetime(pico['DIA']).strftime('%d/%m/%Y')}</b>. A linha pontilhada mostra a
-        tendência (média móvel de 3 dias) para identificar se o retrabalho está em alta ou queda.
+        📌 {label_pico} com <b style="color:{COLORS['aqua']};">{int(pico['QTD'])} ocorrências</b> em
+        <b>{pico_str}</b>
         </div>
         """
     )
@@ -364,7 +428,8 @@ def _render_rodape(m: DashboardMetrics, df_filtrado: pd.DataFrame) -> None:
     top3 = m.causas_resumo.head(3)
     top3_pct = round(top3["PERCENTUAL"].sum(), 0)
     top3_nomes = ", ".join(top3["CAUSA"].tolist())
-
+    
+    '''
     _md(
         f"""
         <div class="panel" style="margin-top:1.4rem; display:flex; align-items:center; gap:18px;">
@@ -387,7 +452,8 @@ def _render_rodape(m: DashboardMetrics, df_filtrado: pd.DataFrame) -> None:
         </div>
         """
     )
-
+      '''
+    
     causa_color_map = {
         causa: CHART_PALETTE[i % len(CHART_PALETTE)]
         for i, causa in enumerate(m.causas_resumo["CAUSA"])
@@ -443,6 +509,6 @@ def render_dashboard(df: pd.DataFrame) -> None:
     _render_oficinas_e_rosca(m)
     _render_ranking_e_causas(m)
     _render_pareto(m)
-    _render_outros(m)
-    _render_sazonalidade(m)
+    #_render_outros(m)
+    _render_sazonalidade(df_f)
     _render_rodape(m, df_f)
