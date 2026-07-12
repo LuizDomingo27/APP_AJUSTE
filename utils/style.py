@@ -165,13 +165,12 @@ box-shadow: 0 0 8px {COLORS['aqua']};
 display: inline-block;
 }}
 
-/* ---------- KPI cards ---------- */
 .kpi-card {{
 background: linear-gradient(165deg, {COLORS['bg_card']} 0%, {COLORS['bg_card_alt']} 100%);
 border: 1px solid {COLORS['border']};
 border-radius: 18px;
-padding: 1.15rem 1.3rem;
-height: 168px;
+padding: 0.95rem 1.1rem;
+height: 142px;
 position: relative;
 overflow: hidden;
 transition: border-color 0.2s ease;
@@ -197,38 +196,39 @@ margin-bottom: 0.6rem;
 }}
 
 .kpi-label {{
-color: {COLORS['text_dim']};
+color: #A8BFBA;
 font-size: 0.72rem;
 font-weight: 600;
 letter-spacing: 0.06em;
 text-transform: uppercase;
-margin-bottom: 0.25rem;
+margin-bottom: 0.15rem;
 }}
 
 .kpi-value {{
 font-family: 'Manrope', sans-serif;
-font-size: 1.7rem;
+font-size: clamp(1.05rem, 1.7rem, 1.7rem);
 font-weight: 800;
 color: {COLORS['text']};
-line-height: 1.15;
+line-height: 1.2;
 white-space: nowrap;
 overflow: hidden;
 text-overflow: ellipsis;
 max-width: 100%;
+margin-bottom: 0.25rem;
 }}
 
 .kpi-caption {{
-color: {COLORS['text_dim']};
-font-size: 0.74rem;
-margin-top: 0.15rem;
+color: #C8D8D4;
+font-size: 0.76rem;
+line-height: 1.35;
+margin-bottom: 0.35rem;
 }}
 
 .kpi-pill {{
 display: inline-block;
-margin-top: 0.10rem;
-padding: 0px 0px;
+padding: 2px 8px;
 border-radius: 999px;
-font-size: 0.72rem;
+font-size: 0.70rem;
 font-weight: 700;
 }}
 
@@ -581,9 +581,11 @@ def kpi_card(
         if pill_text
         else ""
     )
+    icon_html = _icon_chip(icon, icon_bg, icon_color) if icon else ""
+    
     html = f"""
 <div class="kpi-card">
-{_icon_chip(icon, icon_bg, icon_color)}
+{icon_html}
 <div class="kpi-label">{label}</div>
 <div class="kpi-value">{value}</div>
 <div class="kpi-caption">{caption}</div>

@@ -606,3 +606,281 @@ def build_linha(serie_diaria: pd.DataFrame, granularity: str = "Dia") -> tuple[d
     }
 
     return option, {"__SAZONALIDADE_TOOLTIP__": tooltip_js}
+
+
+# --------------------------------------------------------------------------- #
+# Gráficos específicos para GERFAC
+# --------------------------------------------------------------------------- #
+
+def build_gerfac_setores(setores_resumo: pd.DataFrame) -> tuple[dict, dict]:
+    """Donut/Rosca dos setores responsáveis (INDICADORES) pelos chamados."""
+    top_setores = setores_resumo.head(5).reset_index(drop=True)
+    other_qtd = int(setores_resumo.iloc[5:]["QTD"].sum()) if len(setores_resumo) > 5 else 0
+
+    rosca_data = [
+        {"value": int(row["QTD"]), "name": row["SETOR"]}
+        for _, row in top_setores.iterrows()
+    ]
+    if other_qtd > 0:
+        rosca_data.append({"value": other_qtd, "name": "Outros"})
+
+    palette = CHART_PALETTE[:len(rosca_data)]
+    total = sum(item["value"] for item in rosca_data)
+
+    tooltip_js = f"""function(params) {{
+        return '<div style="font-weight:700;color:{COLORS['text']};margin-bottom:4px;">' +
+               params.marker + params.name + '</div>' +
+               '<div style="color:{COLORS['text']};font-size:12px;">' +
+               '<span style="color:' + params.color + ';font-weight:800;">' + params.value + '</span>' +
+               ' chamados &nbsp;<span style="color:{COLORS['aqua']};font-weight:800;">(' +
+               params.percent.toFixed(1) + '%)</span></div>';
+    }}"""
+
+    label_js = f"""function(params) {{
+        return '{{nome|' + params.name + '}}\\n{{valor|' + params.value +
+               '}} {{pct|(' + params.percent.toFixed(1) + '%)}}';
+    }}"""
+
+    option = {
+        "graphic": [
+            {
+                "type": "text",
+                "left": "38%",
+                "top": "48%",
+                "style": {
+                    "text": "{valor|" + str(total) + "}\n{rotulo|Total}",
+                    "textAlign": "center",
+                    "textVerticalAlign": "middle",
+                    "fontFamily": "Inter, sans-serif",
+                    "rich": {
+                        "valor": {
+                            "fill": COLORS["text"],
+                            "fontSize": 26,
+                            "fontWeight": "bold",
+                            "lineHeight": 30,
+                            "align": "center",
+                        },
+                        "rotulo": {
+                            "fill": COLORS["text_dim"],
+                            "fontSize": 12,
+                            "lineHeight": 16,
+                            "align": "center",
+                        },
+                    },
+                },
+            }
+        ],
+        "tooltip": {**_tt(), "trigger": "item", "formatter": "__GERFAC_SETORES_TOOLTIP__"},
+        "legend": {
+            "orient": "vertical",
+            "right": "1%",
+            "top": "center",
+            "textStyle": {
+                "color": COLORS["text_dim"],
+                "fontSize": 11,
+                "fontFamily": "Inter, sans-serif",
+            },
+            "itemWidth": 10,
+            "itemHeight": 10,
+            "itemGap": 10,
+        },
+        "series": [
+            {
+                "type": "pie",
+                "radius": ["40%", "64%"],
+                "center": ["40%", "51%"],
+                "avoidLabelOverlap": True,
+                "minShowLabelAngle": 8,
+                "label": {
+                    "show": True,
+                    "position": "outside",
+                    "formatter": "__GERFAC_SETORES_LABEL__",
+                    "color": COLORS["text"],
+                    "fontSize": 10,
+                    "fontFamily": "Inter, sans-serif",
+                    "lineHeight": 14,
+                    "rich": {
+                        "nome": {
+                            "color": COLORS["text"],
+                            "fontWeight": 700,
+                            "fontSize": 10,
+                        },
+                        "valor": {
+                            "color": COLORS["aqua"],
+                            "fontWeight": 800,
+                            "fontSize": 12,
+                        },
+                        "pct": {
+                            "color": COLORS["text_dim"],
+                            "fontSize": 10,
+                        },
+                    },
+                },
+                "labelLine": {
+                    "show": True,
+                    "length": 10,
+                    "length2": 12,
+                    "smooth": True,
+                    "lineStyle": {"color": COLORS["text_muted"], "width": 1.2},
+                },
+                "emphasis": {
+                    "label": {
+                        "show": True,
+                        "fontSize": 11,
+                        "fontWeight": "bold",
+                    },
+                    "itemStyle": {"shadowBlur": 14, "shadowColor": "rgba(31,231,184,0.35)"},
+                },
+                "data": [
+                    {**item, "itemStyle": {"color": palette[i]}}
+                    for i, item in enumerate(rosca_data)
+                ],
+            }
+        ],
+    }
+
+    return option, {"__GERFAC_SETORES_TOOLTIP__": tooltip_js, "__GERFAC_SETORES_LABEL__": label_js}
+
+
+def build_gerfac_oficinas(oficinas_resumo: pd.DataFrame) -> tuple[dict, dict]:
+    """Ranking (Top 10) das oficinas (Prest. Serviço) que mais abrem chamados."""
+    top10 = oficinas_resumo.head(10).sort_values("QTD", ascending=True)
+    bar_colors = value_color_scale(top10["QTD"])
+
+    tooltip_js = f"""function(params) {{
+        var p = params[0];
+        return '<div style="font-weight:700;color:{COLORS['text']};margin-bottom:4px;">' +
+               p.marker + p.name + '</div>' +
+               '<div style="color:{COLORS['text']};font-size:12px;">' +
+               '<span style="color:' + p.color + ';font-weight:800;">' + p.value +
+               '</span> chamados</div>';
+    }}"""
+
+    option = {
+        "grid": {"left": 4, "right": 48, "top": 8, "bottom": 8, "containLabel": True},
+        "tooltip": {
+            **_tt(),
+            "trigger": "axis",
+            "axisPointer": {"type": "shadow", "shadowStyle": {"color": "rgba(31,231,184,0.06)"}},
+            "formatter": "__GERFAC_OFICINAS_TOOLTIP__",
+        },
+        "xAxis": {"type": "value", "show": False},
+        "yAxis": {
+            "type": "category",
+            "data": top10["OFICINA"].tolist(),
+            "axisLine": {"show": False},
+            "axisTick": {"show": False},
+            "axisLabel": {
+                "color": COLORS["text_dim"],
+                "fontSize": 11,
+                "fontFamily": "Inter, sans-serif",
+            },
+        },
+        "series": [
+            {
+                "type": "bar",
+                "data": [
+                    {"value": int(v), "itemStyle": {"color": c, "borderRadius": [0, 5, 5, 0]}}
+                    for v, c in zip(top10["QTD"], bar_colors)
+                ],
+                "barWidth": "56%",
+                "label": {
+                    "show": True,
+                    "position": "right",
+                    "color": COLORS["text"],
+                    "fontSize": 11,
+                    "fontWeight": 600,
+                },
+            }
+        ],
+    }
+
+    return option, {"__GERFAC_OFICINAS_TOOLTIP__": tooltip_js}
+
+
+def build_gerfac_evolucao(serie_diaria: pd.DataFrame) -> tuple[dict, dict]:
+    """Linha temporal diária dos chamados com área preenchida e média móvel."""
+    if serie_diaria.empty:
+        return {}, {}
+
+    periods = pd.to_datetime(serie_diaria["DIA"])
+    x_data = periods.dt.strftime("%d/%m").tolist()
+
+    tooltip_js = f"""function(params) {{
+        var html = '<div style="font-weight:700;color:{COLORS['text']};margin-bottom:6px;">' +
+                    params[0].axisValueLabel + '</div>';
+        params.forEach(function(p) {{
+            html += '<div style="display:flex;align-items:center;justify-content:space-between;' +
+                    'gap:16px;color:{COLORS['text']};font-size:12px;margin-top:3px;">' +
+                    '<span>' + p.marker + p.seriesName + '</span>' +
+                    '<span style="font-weight:800;color:' + p.color + ';">' + p.value +
+                    '</span></div>';
+        }});
+        return html;
+    }}"""
+
+    option = {
+        "tooltip": {**_tt(), "trigger": "axis", "formatter": "__GERFAC_EVOLUCAO_TOOLTIP__"},
+        "legend": {
+            "data": ["Chamados", "Média Móvel (3d)"],
+            "bottom": 0,
+            "textStyle": {
+                "color": COLORS["text_dim"],
+                "fontSize": 11,
+                "fontFamily": "Inter, sans-serif",
+            },
+        },
+        "grid": {"left": "1%", "right": "6%", "top": "12%", "bottom": "18%", "containLabel": True},
+        "xAxis": {
+            "type": "category",
+            "data": x_data,
+            "boundaryGap": False,
+            "axisLine": {"lineStyle": {"color": "rgba(255,255,255,0.12)"}},
+            "axisTick": {"show": False},
+            "axisLabel": {
+                "color": COLORS["text_dim"],
+                "fontSize": 10,
+                "fontFamily": "Inter, sans-serif",
+            },
+        },
+        "yAxis": [
+            {
+                "type": "value",
+                "name": "Chamados",
+                "nameTextStyle": {"color": COLORS["text_dim"], "fontSize": 10},
+                "splitLine": {"lineStyle": {"color": "rgba(255,255,255,0.05)"}},
+                "axisLabel": {"color": COLORS["text_dim"], "fontFamily": "Inter, sans-serif"},
+            }
+        ],
+        "series": [
+            {
+                "name": "Chamados",
+                "type": "line",
+                "smooth": True,
+                "symbolSize": 6,
+                "data": [int(v) for v in serie_diaria["QTD"]],
+                "lineStyle": {"color": COLORS["aqua"], "width": 2.5},
+                "itemStyle": {"color": COLORS["aqua"]},
+                "areaStyle": {
+                    "color": {
+                        "type": "linear",
+                        "x": 0, "y": 0, "x2": 0, "y2": 1,
+                        "colorStops": [
+                            {"offset": 0, "color": "rgba(31,231,184,0.20)"},
+                            {"offset": 1, "color": "rgba(31,231,184,0)"},
+                        ],
+                    }
+                },
+            },
+            {
+                "name": "Média Móvel (3d)",
+                "type": "line",
+                "smooth": True,
+                "showSymbol": False,
+                "data": [float(v) for v in serie_diaria["MEDIA_MOVEL"]],
+                "lineStyle": {"color": COLORS["amber"], "width": 2, "type": "dotted"},
+            }
+        ],
+    }
+
+    return option, {"__GERFAC_EVOLUCAO_TOOLTIP__": tooltip_js}

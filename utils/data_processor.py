@@ -430,3 +430,272 @@ def export_excel(df: pd.DataFrame, periodo_inicio: str, periodo_fim: str) -> byt
     buf = io.BytesIO()
     wb.save(buf)
     return buf.getvalue()
+
+
+# --------------------------------------------------------------------------- #
+# Mapeamento flexível de colunas GERFAC
+# --------------------------------------------------------------------------- #
+
+GERFAC_COLUMN_ALIASES = {
+    "Grupo": ["grupo"],
+    "Prest. Serviço": ["prest. servico", "prest. serviço", "prestador", "oficina", "fornecedor", "prest.servico"],
+    "Agrupador": ["agrupador", "mes"],
+    "OP": ["op", "ordem", "ordem de producao"],
+    "Artigo": ["artigo", "referencia", "produto"],
+    "Fase": ["fase", "operacao"],
+    "Sit. Atual OP": ["sit. atual op", "situacao atual op"],
+    "Sit. OP na data": ["sit. op na data", "situacao op na data"],
+    "Dt. Problema": ["dt. problema", "data problema", "data do problema", "data_problema", "dt problema", "data"],
+    "Descrição": ["descrição", "descricao", "motivo"],
+    "Inf. Complementar (P. Serviço)": [
+        "inf. complementar (p. servico)",
+        "inf. complementar (p. serviço)",
+        "informacao complementar",
+        "inf complementar",
+        "observacao",
+        "complemento",
+        "descricao detalhada",
+    ],
+    "Sit. Problema": ["sit. problema", "situacao problema"],
+    "INDICADORES": ["indicadores", "indicador", "setor", "canal"],
+}
+
+
+def normalize_gerfac_columns(df: pd.DataFrame) -> pd.DataFrame:
+    """Renomeia as colunas da planilha original GERFAC para os nomes canônicos."""
+    df = df.copy()
+    df.columns = [str(c).strip() for c in df.columns]
+    rename_map = {}
+    for canonical, aliases in GERFAC_COLUMN_ALIASES.items():
+        found = _match_column(list(df.columns), aliases)
+        if found:
+            rename_map[found] = canonical
+    df = df.rename(columns=rename_map)
+
+    required_cols = ["INDICADORES", "Inf. Complementar (P. Serviço)", "Dt. Problema", "Prest. Serviço"]
+    for required in required_cols:
+        if required not in df.columns:
+            raise ValueError(
+                f"Não foi possível localizar a coluna correspondente a "
+                f"'{required}' na planilha enviada. Verifique o cabeçalho do arquivo."
+            )
+
+    valid_cols = [c for c in GERFAC_COLUMN_ALIASES.keys() if c in df.columns]
+    return df[valid_cols]
+
+
+def process_gerfac_data(raw_df: pd.DataFrame) -> pd.DataFrame:
+    """Pipeline de tratamento para dados do GERFAC."""
+    df = normalize_gerfac_columns(raw_df)
+
+    # Tratamento de datas
+    df["Dt. Problema"] = pd.to_datetime(df["Dt. Problema"], dayfirst=True, errors="coerce")
+
+    # Limpeza de campos de texto
+    df["INDICADORES"] = df["INDICADORES"].astype(str).str.strip()
+    df["Inf. Complementar (P. Serviço)"] = df["Inf. Complementar (P. Serviço)"].astype(str).str.strip()
+    df["Prest. Serviço"] = df["Prest. Serviço"].astype(str).str.strip()
+
+    # Filtragem de registros nulos ou vazios em colunas cruciais
+    df = df[df["Dt. Problema"].notna()]
+    df = df[(df["INDICADORES"] != "") & (df["INDICADORES"].str.lower() != "nan")]
+    df = df[(df["Prest. Serviço"] != "") & (df["Prest. Serviço"].str.lower() != "nan")]
+
+    df = df.reset_index(drop=True)
+    return df
+
+
+# --------------------------------------------------------------------------- #
+# KPIs e agregações GERFAC
+# --------------------------------------------------------------------------- #
+
+@dataclass
+class GerfacMetrics:
+    total_chamados: int = 0
+    media_diaria: float = 0.0
+    motivo_principal: str = "-"
+    motivo_principal_qtd: int = 0
+    motivo_principal_pct: float = 0.0
+    setor_principal: str = "-"
+    setor_principal_qtd: int = 0
+    setor_principal_pct: float = 0.0
+    periodo_inicio: str = "-"
+    periodo_fim: str = "-"
+    setores_resumo: pd.DataFrame = field(default_factory=pd.DataFrame)
+    oficinas_resumo: pd.DataFrame = field(default_factory=pd.DataFrame)
+    serie_diaria: pd.DataFrame = field(default_factory=pd.DataFrame)
+
+
+def build_gerfac_metrics(df: pd.DataFrame) -> GerfacMetrics:
+    """Calcula todas as métricas e resumos para o painel GERFAC."""
+    m = GerfacMetrics()
+    total = len(df)
+    m.total_chamados = total
+    if total == 0:
+        return m
+
+    m.periodo_inicio = pd.to_datetime(df["Dt. Problema"].min()).strftime("%d/%m/%Y")
+    m.periodo_fim = pd.to_datetime(df["Dt. Problema"].max()).strftime("%d/%m/%Y")
+
+    dias_distintos = df["Dt. Problema"].dt.date.nunique() or 1
+    m.media_diaria = round(total / dias_distintos, 1)
+
+    # Setores (INDICADORES)
+    setores = (
+        df["INDICADORES"]
+        .value_counts()
+        .rename_axis("SETOR")
+        .reset_index(name="QTD")
+    )
+    setores["PERCENTUAL"] = (setores["QTD"] / total * 100).round(1)
+    m.setores_resumo = setores
+
+    if not setores.empty:
+        m.setor_principal = setores.iloc[0]["SETOR"]
+        m.setor_principal_qtd = int(setores.iloc[0]["QTD"])
+        m.setor_principal_pct = float(setores.iloc[0]["PERCENTUAL"])
+
+    # Motivos (Inf. Complementar (P. Serviço))
+    motivos = (
+        df["Inf. Complementar (P. Serviço)"]
+        .value_counts()
+        .rename_axis("MOTIVO")
+        .reset_index(name="QTD")
+    )
+    if not motivos.empty:
+        m.motivo_principal = motivos.iloc[0]["MOTIVO"]
+        m.motivo_principal_qtd = int(motivos.iloc[0]["QTD"])
+        m.motivo_principal_pct = round((m.motivo_principal_qtd / total * 100), 1)
+
+    # Oficinas (Prest. Serviço)
+    oficinas = (
+        df["Prest. Serviço"]
+        .value_counts()
+        .rename_axis("OFICINA")
+        .reset_index(name="QTD")
+        .sort_values("QTD", ascending=False)
+    )
+    m.oficinas_resumo = oficinas
+
+    # Evolução diária
+    df_dia = df.copy()
+    df_dia["DIA"] = df_dia["Dt. Problema"].dt.date
+    serie = (
+        df_dia.groupby("DIA")
+        .size()
+        .rename("QTD")
+        .reset_index()
+        .sort_values("DIA")
+    )
+    serie["MEDIA_MOVEL"] = serie["QTD"].rolling(window=3, min_periods=1).mean().round(1)
+    m.serie_diaria = serie
+
+    return m
+
+
+# --------------------------------------------------------------------------- #
+# Exportação GERFAC — planilha executiva (.xlsx)
+# --------------------------------------------------------------------------- #
+
+def export_gerfac_excel(df: pd.DataFrame, periodo_inicio: str, periodo_fim: str) -> bytes:
+    """Gera um arquivo Excel com os registros de GERFAC (filtrado)."""
+    C_HEADER_BG  = "070B10"
+    C_HEADER_FG  = "1FE7B8"
+    C_ROW_ALT    = "0E151B"
+    C_ROW_EVEN   = "0B1117"
+    C_TEXT       = "E9F5F1"
+    C_TEXT_DIM   = "7F93A0"
+    C_ACCENT     = "1FE7B8"
+
+    thin = Side(style="thin", color="1A2E26")
+    border = Border(left=thin, right=thin, top=thin, bottom=thin)
+
+    header_font  = Font(name="Calibri", bold=True, size=10, color=C_HEADER_FG)
+    header_fill  = PatternFill("solid", fgColor=C_HEADER_BG)
+    header_align = Alignment(horizontal="center", vertical="center", wrap_text=False)
+
+    data_font      = Font(name="Calibri", size=10, color=C_TEXT)
+    data_font_dim  = Font(name="Calibri", size=10, color=C_TEXT_DIM)
+    data_align_l   = Alignment(horizontal="left",   vertical="center", wrap_text=False)
+    data_align_c   = Alignment(horizontal="center", vertical="center", wrap_text=False)
+    data_align_wrap = Alignment(horizontal="left",  vertical="center", wrap_text=True)
+
+    fill_even = PatternFill("solid", fgColor=C_ROW_EVEN)
+    fill_odd  = PatternFill("solid", fgColor=C_ROW_ALT)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Dados GERFAC Tratados"
+
+    # Cabeçalho da planilha
+    ws.merge_cells("A1:G1")
+    title_cell = ws["A1"]
+    title_cell.value = "ANÁLISE GERFAC — RESUMO EXECUTIVO"
+    title_cell.font = Font(name="Calibri", bold=True, size=14, color=C_ACCENT)
+    title_cell.fill = PatternFill("solid", fgColor=C_HEADER_BG)
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 28
+
+    ws.merge_cells("A2:G2")
+    sub_cell = ws["A2"]
+    sub_cell.value = f"Período: {periodo_inicio} a {periodo_fim}  |  Total: {len(df):,} chamados"
+    sub_cell.font = Font(name="Calibri", size=10, color=C_TEXT_DIM)
+    sub_cell.fill = PatternFill("solid", fgColor=C_HEADER_BG)
+    sub_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[2].height = 18
+
+    ws.merge_cells("A3:G3")
+    ws["A3"].fill = PatternFill("solid", fgColor=C_HEADER_BG)
+    ws.row_dimensions[3].height = 6
+
+    # Colunas
+    COLUMNS = ["Dt. Problema", "Prest. Serviço", "INDICADORES", "OP", "Artigo", "Fase", "Inf. Complementar"]
+    for col_idx, col_name in enumerate(COLUMNS, start=1):
+        cell = ws.cell(row=4, column=col_idx, value=col_name)
+        cell.font  = header_font
+        cell.fill  = header_fill
+        cell.alignment = header_align
+        cell.border = border
+    ws.row_dimensions[4].height = 22
+
+    # Dados
+    export_df = df.copy()
+    if "Dt. Problema" in export_df.columns:
+        export_df = export_df.sort_values("Dt. Problema", ascending=False).reset_index(drop=True)
+        export_df["Dt. Problema_Str"] = pd.to_datetime(export_df["Dt. Problema"]).dt.strftime("%d/%m/%Y")
+    else:
+        export_df["Dt. Problema_Str"] = ""
+
+    for row_idx, (_, row) in enumerate(export_df.iterrows(), start=5):
+        fill = fill_even if row_idx % 2 == 0 else fill_odd
+        
+        dt_val = row.get("Dt. Problema_Str", "")
+        prest = row.get("Prest. Serviço", "")
+        ind = row.get("INDICADORES", "")
+        op = row.get("OP", "")
+        art = row.get("Artigo", "")
+        fase = row.get("Fase", "")
+        inf_comp = row.get("Inf. Complementar (P. Serviço)", "")
+
+        values = [dt_val, prest, ind, op, art, fase, inf_comp]
+        aligns = [data_align_c, data_align_l, data_align_c, data_align_c, data_align_c, data_align_c, data_align_wrap]
+        fonts  = [data_font_dim, data_font, data_font, data_font_dim, data_font_dim, data_font_dim, data_font_dim]
+
+        for col_idx, (val, aln, fnt) in enumerate(zip(values, aligns, fonts), start=1):
+            cell = ws.cell(row=row_idx, column=col_idx, value=val)
+            cell.font      = fnt
+            cell.fill      = fill
+            cell.alignment = aln
+            cell.border    = border
+        ws.row_dimensions[row_idx].height = 16
+
+    col_widths = {"A": 14, "B": 30, "C": 22, "D": 14, "E": 14, "F": 12, "G": 60}
+    for col_letter, width in col_widths.items():
+        ws.column_dimensions[col_letter].width = width
+
+    ws.freeze_panes = "A5"
+    ws.auto_filter.ref = f"A4:G{4 + len(export_df)}"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()

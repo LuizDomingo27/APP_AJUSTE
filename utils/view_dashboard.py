@@ -154,19 +154,20 @@ def _render_kpis(m: DashboardMetrics) -> None:
         _md(kpi_card(
             label="Total de Ocorrências",
             value=str(m.total_ocorrencias),
-            caption=f"ajustes registrados · média de {m.media_diaria}/dia",
-            icon="📋",
+            caption=f"ajustes registrados no período",
+            icon="",
+            pill_text=f"{m.media_diaria}/dia",
+            pill_bg="rgba(31,231,184,0.12)",
+            pill_color=COLORS["aqua"],
         ))
     with c2:
         _md(kpi_card(
             label="Principal Causa",
             value=m.causa_principal,
             caption=f"{m.causa_principal_qtd} ocorrências",
-            icon="🏷️",
-            icon_bg="rgba(31,231,184,0.14)",
-            icon_color=COLORS["aqua"],
+            icon="",
             pill_text=f"{m.causa_principal_pct}% do total",
-            pill_bg="rgba(31,231,184,0.14)",
+            pill_bg="rgba(31,231,184,0.12)",
             pill_color=COLORS["aqua"],
         ))
     with c3:
@@ -174,30 +175,30 @@ def _render_kpis(m: DashboardMetrics) -> None:
             label="2ª Maior Causa",
             value=m.segunda_causa,
             caption=f"{m.segunda_causa_qtd} ocorrências",
-            icon="⚖️",
-            icon_bg="rgba(140,233,154,0.14)",
-            icon_color=COLORS["green"],
+            icon="",
             pill_text=f"{m.segunda_causa_pct}% do total",
-            pill_bg="rgba(140,233,154,0.14)",
+            pill_bg="rgba(140,233,154,0.12)",
             pill_color=COLORS["green"],
         ))
     with c4:
         _md(kpi_card(
             label="Causas Financeiras",
             value=f"{m.pct_financeiro}%",
-            caption="Descontos, Balanceamento, Valor Unitário e Reembolso",
-            icon="💲",
-            icon_bg="rgba(233,196,106,0.14)",
-            icon_color=COLORS["amber"],
+            caption="Descontos, Balanceamento e Reembolso",
+            icon="",
+            pill_text="Financeiro",
+            pill_bg="rgba(233,196,106,0.12)",
+            pill_color=COLORS["amber"],
         ))
     with c5:
         _md(kpi_card(
             label="Oficinas com Reincidência",
             value=str(m.qtd_oficinas_reincidentes),
-            caption=f"de {m.qtd_oficinas_total} oficinas no período",
-            icon="🔁",
-            icon_bg="rgba(224,102,122,0.14)",
-            icon_color=COLORS["red"],
+            caption=f"de {m.qtd_oficinas_total} oficinas no total",
+            icon="",
+            pill_text="Reincidentes",
+            pill_bg="rgba(224,102,122,0.12)",
+            pill_color=COLORS["red"],
         ))
 
 

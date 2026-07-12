@@ -99,6 +99,91 @@ def get_db_info() -> dict | None:
 
 
 # --------------------------------------------------------------------------- #
+# Persistência GERFAC
+# --------------------------------------------------------------------------- #
+
+def _update_meta_gerfac(conn: sqlite3.Connection, record_count: int | None = None) -> None:
+    """Atualiza os metadados de upload do GERFAC."""
+    conn.execute("CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT)")
+    conn.execute(
+        "INSERT OR REPLACE INTO meta VALUES ('upload_date_gerfac', ?)",
+        (datetime.now().strftime("%d/%m/%Y %H:%M"),),
+    )
+    if record_count is None:
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tbGerfac'")
+        if cursor.fetchone():
+            record_count = conn.execute("SELECT COUNT(*) FROM tbGerfac").fetchone()[0]
+        else:
+            record_count = 0
+    conn.execute(
+        "INSERT OR REPLACE INTO meta VALUES ('record_count_gerfac', ?)",
+        (str(record_count),),
+    )
+
+
+def save_gerfac_to_db(df: pd.DataFrame) -> None:
+    """Substitui toda a tabela tbGerfac e registra metadados do upload."""
+    df_save = df.copy()
+    if "Dt. Problema" in df_save.columns:
+        df_save["Dt. Problema"] = df_save["Dt. Problema"].astype(str)
+    if "Agrupador" in df_save.columns:
+        df_save["Agrupador"] = df_save["Agrupador"].astype(str)
+    if "Dt. Fim At." in df_save.columns:
+        df_save["Dt. Fim At."] = df_save["Dt. Fim At."].astype(str)
+
+    with sqlite3.connect(DB_PATH) as conn:
+        df_save.to_sql("tbGerfac", conn, if_exists="replace", index=False)
+        _update_meta_gerfac(conn, record_count=len(df))
+
+
+def load_gerfac_from_db() -> pd.DataFrame | None:
+    """Carrega dados da tbGerfac do SQLite. Retorna None se o banco ou a tabela não existirem."""
+    if not DB_PATH.exists():
+        return None
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            # Verifica se a tabela existe antes de fazer a consulta
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='tbGerfac'")
+            if not cursor.fetchone():
+                return None
+            df = pd.read_sql("SELECT * FROM tbGerfac", conn)
+        
+        if df.empty:
+            return None
+            
+        if "Dt. Problema" in df.columns:
+            df["Dt. Problema"] = pd.to_datetime(df["Dt. Problema"], errors="coerce")
+        if "Agrupador" in df.columns:
+            df["Agrupador"] = pd.to_datetime(df["Agrupador"], errors="coerce")
+        return df
+    except Exception:
+        return None
+
+
+def get_db_info_gerfac() -> dict | None:
+    """Retorna metadados do último upload do GERFAC (data e quantidade)."""
+    if not DB_PATH.exists():
+        return None
+    try:
+        with sqlite3.connect(DB_PATH) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='meta'")
+            if not cursor.fetchone():
+                return None
+            rows = dict(conn.execute("SELECT key, value FROM meta").fetchall())
+        if "upload_date_gerfac" not in rows:
+            return None
+        return {
+            "upload_date": rows.get("upload_date_gerfac", ""),
+            "count": int(rows.get("record_count_gerfac", 0)),
+        }
+    except Exception:
+        return None
+
+
+# --------------------------------------------------------------------------- #
 # Inserção individual de registros (formulário "Novo Registro")
 # --------------------------------------------------------------------------- #
 # Diferente de save_to_db (que substitui a tabela inteira a cada upload de

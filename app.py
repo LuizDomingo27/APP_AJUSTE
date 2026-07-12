@@ -23,10 +23,11 @@ Para adicionar uma nova página:
 
 import streamlit as st
 
-from utils.database import get_db_info, load_from_db
+from utils.database import get_db_info, load_from_db, get_db_info_gerfac, load_gerfac_from_db
 from utils.registro_manual import render_pagina_editar_registro, render_pagina_novo_registro
 from utils.style import COLORS, flush_html, inject_global_css
 from utils.view_dashboard import render_dashboard
+from utils.view_dashboard_gerfac import render_dashboard_gerfac
 from utils.view_upload import render_pagina_upload
 
 st.set_page_config(
@@ -47,43 +48,62 @@ def _md(html: str) -> None:
 # Session state — inicialização única na primeira execução
 # --------------------------------------------------------------------------- #
 
+if "analise_ativa" not in st.session_state:
+    st.session_state.analise_ativa = "retrabalho"
+
 if "show_upload" not in st.session_state:
     # Abre a tela de upload automaticamente se o banco ainda não existe.
-    st.session_state.show_upload = get_db_info() is None
+    if st.session_state.analise_ativa == "gerfac":
+        st.session_state.show_upload = get_db_info_gerfac() is None
+    else:
+        st.session_state.show_upload = get_db_info() is None
+
 if "show_novo_registro" not in st.session_state:
     st.session_state.show_novo_registro = False
 if "show_editar_registro" not in st.session_state:
     st.session_state.show_editar_registro = False
 
+
 # --------------------------------------------------------------------------- #
-# Sidebar — logo (exibido em todas as rotas)
+# Sidebar — Seletor de Análise (topo)
 # --------------------------------------------------------------------------- #
 
-#_SIDEBAR_LOGO = f"""
-#<div style="display:flex; align-items:center; gap:10px; margin-bottom:1.4rem;">
-#    <div style="width:36px; height:36px; border-radius:10px;
-#                background:rgba(31,231,184,0.12); display:flex;
-#                align-items:center; justify-content:center; font-size:1.1rem;">📊</div>
-#    <div>
-#        <div style="font-weight:800; color:{COLORS['text']}; font-size:0.95rem;">AJUSTES &amp;</div>
-#        <div style="font-weight:800; color:{COLORS['aqua']}; font-size:0.95rem;">OCORRÊNCIAS</div>
-#    </div>
-#</div>
-#"""
-#
+with st.sidebar:
+    st.markdown("**Selecione a Análise**")
+    analise_opcoes = {
+        "retrabalho": "Análise de Retrabalho",
+        "gerfac": "Análise GERFAC"
+    }
+    
+    nova_analise = st.radio(
+        "Selecione a Análise",
+        options=list(analise_opcoes.keys()),
+        format_func=lambda x: analise_opcoes[x],
+        label_visibility="collapsed",
+        key="analise_ativa_radio"
+    )
+    
+    if nova_analise != st.session_state.analise_ativa:
+        st.session_state.analise_ativa = nova_analise
+        # Reseta os estados de página ao alternar análises
+        st.session_state.show_upload = False
+        st.session_state.show_novo_registro = False
+        st.session_state.show_editar_registro = False
+        st.rerun()
+
 # --------------------------------------------------------------------------- #
 # Rota: tela de upload
 # --------------------------------------------------------------------------- #
 
 if st.session_state.show_upload:
     with st.sidebar:
-        #_md(_SIDEBAR_LOGO)
-        if get_db_info() is not None:
+        db_info_check = get_db_info_gerfac() if st.session_state.analise_ativa == "gerfac" else get_db_info()
+        if db_info_check is not None:
             if st.button("← Voltar ao dashboard", use_container_width=True):
                 st.session_state.show_upload = False
                 st.rerun()
 
-    if render_pagina_upload():
+    if render_pagina_upload(st.session_state.analise_ativa):
         st.session_state.show_upload = False
         st.rerun()
 
@@ -93,7 +113,11 @@ if st.session_state.show_upload:
 # Guarda de segurança — banco vazio redireciona para upload
 # --------------------------------------------------------------------------- #
 
-df = load_from_db()
+if st.session_state.analise_ativa == "gerfac":
+    df = load_gerfac_from_db()
+else:
+    df = load_from_db()
+
 if df is None or df.empty:
     st.session_state.show_upload = True
     st.rerun()
@@ -104,7 +128,6 @@ if df is None or df.empty:
 
 if st.session_state.show_novo_registro:
     with st.sidebar:
-        #_md(_SIDEBAR_LOGO)
         if st.button("← Voltar ao dashboard", use_container_width=True):
             st.session_state.show_novo_registro = False
             st.rerun()
@@ -117,7 +140,6 @@ if st.session_state.show_novo_registro:
 
 if st.session_state.show_editar_registro:
     with st.sidebar:
-        #_md(_SIDEBAR_LOGO)
         if st.button("← Voltar ao dashboard", use_container_width=True):
             st.session_state.show_editar_registro = False
             st.rerun()
@@ -129,15 +151,23 @@ if st.session_state.show_editar_registro:
 # --------------------------------------------------------------------------- #
 
 with st.sidebar:
-    #_md(_SIDEBAR_LOGO)
-    if st.button("➕  Novo registro", use_container_width=True, type="primary"):
-        st.session_state.show_novo_registro = True
-        st.rerun()
-    if st.button("✏️  Atualizar registro", use_container_width=True):
-        st.session_state.show_editar_registro = True
-        st.rerun()
-    if st.button("🔄  Atualizar dados", use_container_width=True):
-        st.session_state.show_upload = True
-        st.rerun()
+    st.markdown("---")
+    if st.session_state.analise_ativa == "gerfac":
+        if st.button("Atualizar dados", use_container_width=True):
+            st.session_state.show_upload = True
+            st.rerun()
+    else:
+        if st.button("➕  Novo registro", use_container_width=True, type="primary"):
+            st.session_state.show_novo_registro = True
+            st.rerun()
+        if st.button("✏️  Atualizar registro", use_container_width=True):
+            st.session_state.show_editar_registro = True
+            st.rerun()
+        if st.button("🔄  Atualizar dados", use_container_width=True):
+            st.session_state.show_upload = True
+            st.rerun()
 
-render_dashboard(df)
+if st.session_state.analise_ativa == "gerfac":
+    render_dashboard_gerfac(df)
+else:
+    render_dashboard(df)
